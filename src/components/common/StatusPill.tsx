@@ -1,4 +1,5 @@
 import React from 'react';
+import { Badge } from '../ui/badge';
 
 export type StatusVariant =
   | 'completed'
@@ -48,11 +49,11 @@ export const StatusPill: React.FC<StatusPillProps> = ({
 }) => {
   const s = styles[variant] ?? styles.draft;
   return (
-    <span
-      className={`inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-pill px-2.5 text-xs font-semibold capitalize leading-none ${s.pill} ${className}`}
+    <Badge
+      className={`capitalize ${s.pill} ${className}`}
     >
       {showDot && <span className={`size-2 shrink-0 rounded-full ${s.dot}`} />}
       <span>{label}</span>
-    </span>
+    </Badge>
   );
 };

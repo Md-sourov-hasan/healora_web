@@ -84,6 +84,20 @@
   #root {
     @apply flex min-h-screen flex-col;
   }
+
+  button, [role="button"] {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-teal/45 focus-visible:ring-offset-2 focus-visible:ring-offset-bone;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    @apply border-line bg-paper text-ink outline-none transition placeholder:text-slate/70 focus:border-teal focus:ring-2 focus:ring-teal/20 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  select {
+    @apply cursor-pointer;
+  }
 }
 
 /* Tailwind utilities for the app-wide accessibility preferences. */
