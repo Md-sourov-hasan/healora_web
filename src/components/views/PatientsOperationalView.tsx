@@ -5,9 +5,10 @@ import {
   PhShieldCheck,
 } from '../icons/PhosphorIcons';
 import { Card } from '../common/Card';
+import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../context/useApp';
 import type { Patient } from '../../types';
 
 export const PatientsOperationalView: React.FC = () => {
@@ -24,27 +25,19 @@ export const PatientsOperationalView: React.FC = () => {
   );
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1280px', margin: '0 auto' }}>
+    <div className="mx-auto max-w-7xl px-10 py-8">
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#1D6B66', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      <div className="mb-6">
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="text-xs font-semibold tracking-[0.04em] uppercase text-teal">
             {language === 'bn' ? 'তথ্য গোপনীয়তা ও রোগী যাচাই' : 'OPERATIONAL IDENTITY & PRIVACY CONTROLS'}
           </span>
           <StatusPill label="PDPA 2026 Sensitive Data Scoped" variant="upcoming" />
         </div>
-        <h1
-          style={{
-            margin: 0,
-            fontSize: '28px',
-            fontWeight: 600,
-            color: '#0B1F22',
-            fontFamily: 'var(--ui)',
-          }}
-        >
+        <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
           {t.navPatients}
         </h1>
-        <p style={{ margin: '4px 0 0 0', color: '#5B6B6E', fontSize: '14px' }}>
+        <p className="mt-1 mb-0 text-sm text-slate">
           {language === 'bn'
             ? 'অভ্যর্থনা ও হাব কার্যক্রমের জন্য ন্যূনতম প্রয়োজনীয় পরিচিতি তথ্য। চিকিৎসা বিবরণী ডাক্তার ও টিম অ্যাপে সীমাবদ্ধ।'
             : 'Minimum-necessary operational view for patient verification and check-in. Full medical history is restricted to verified clinical workflows.'}
@@ -52,40 +45,16 @@ export const PatientsOperationalView: React.FC = () => {
       </div>
 
       {/* Privacy Notice Card (PRD Section 16 & 17) */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          backgroundColor: '#E6EEEA', // Mist
-          border: '1px solid #CFE0D8',
-          borderRadius: '16px',
-          padding: '14px 20px',
-          marginBottom: '24px',
-          color: '#0F3D3A',
-          fontSize: '13px',
-        }}
-      >
+      <div className="mb-6 flex items-center gap-3 rounded-2xl border border-sage-200 bg-mist px-5 py-3.5 text-[13px] text-pine">
         <PhShieldCheck size={20} color="#1D6B66" />
-        <div style={{ flex: 1 }}>
+        <div className="flex-1">
           <strong>Least-Privilege Guard Active:</strong> Receptionists and hub managers are authorized to verify patient identity, contact details, and consent status. Complete diagnostic notes, prescriptions, and raw vitals are restricted to BMDC-verified doctors.
         </div>
       </div>
 
       {/* Search Input */}
-      <div style={{ marginBottom: '20px' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            backgroundColor: '#FFFFFF',
-            border: '1px solid #DDE5E1',
-            borderRadius: '12px',
-            padding: '12px 16px',
-            boxShadow: '0 1px 2px rgba(11,31,34,.04)',
-          }}
-        >
+      <div className="mb-5">
+        <div className="flex items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3 shadow-2xs">
           <PhMagnifyingGlass size={18} color="#1D6B66" />
           <input
             type="text"
@@ -96,89 +65,77 @@ export const PatientsOperationalView: React.FC = () => {
                 ? 'হিলোরা আইডি (যেমন PAT-88019), ফোন নম্বর বা নাম দিয়ে খুঁজুন...'
                 : 'Search by Healora ID (e.g. PAT-88019), phone number (+880...), or name...'
             }
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              fontFamily: 'var(--ui)',
-              fontSize: '15px',
-              color: '#0B1F22',
-            }}
+            className="flex-1 border-none bg-transparent font-ui text-[15px] text-ink outline-none placeholder:text-slate/70"
           />
         </div>
       </div>
 
       {/* Patients Table */}
-      <Card variant="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily: 'var(--ui)' }}>
+      <Card variant="card" className="p-0! overflow-hidden">
+        <table className="w-full border-collapse text-left font-ui">
           <thead>
-            <tr style={{ backgroundColor: '#F5F3EE', borderBottom: '1px solid #DDE5E1' }}>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+            <tr className="border-b border-line bg-bone">
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 Canonical ID
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 {t.patientName}
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 Demographics
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 Upazila &amp; District
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 Consent / Authority
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 Encounters
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase', textAlign: 'right' }}>
+              <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase text-slate">
                 Verification
               </th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((patient, idx) => (
+            {filtered.map((patient) => (
               <tr
                 key={patient.id}
-                style={{
-                  borderBottom: idx === filtered.length - 1 ? 'none' : '1px solid #DDE5E1',
-                  transition: 'background-color 0.1s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F5F3EE')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                className="border-b border-line transition-colors duration-100 last:border-b-0 hover:bg-bone"
               >
                 {/* Canonical ID */}
-                <td style={{ padding: '16px 20px' }}>
-                  <div style={{ fontWeight: 700, fontSize: '13px', color: '#0B1F22' }}>
+                <td className="px-5 py-4">
+                  <div className="text-[13px] font-bold text-ink">
                     {patient.canonicalHealoraId}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#5B6B6E' }}>
+                  <div className="text-[11px] text-slate">
                     NID: {patient.nationalIdMasked}
                   </div>
                 </td>
 
                 {/* Name & Phone */}
-                <td style={{ padding: '16px 20px' }}>
-                  <div style={{ fontWeight: 600, fontSize: '15px', color: '#0B1F22' }}>
+                <td className="px-5 py-4">
+                  <div className="text-[15px] font-semibold text-ink">
                     {language === 'bn' ? patient.fullNameBn : patient.fullName}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#5B6B6E' }} className="num-tabular">
+                  <div className="tabular-nums text-xs text-slate">
                     {patient.phone}
                   </div>
                 </td>
 
                 {/* Age & Gender */}
-                <td style={{ padding: '16px 20px', fontSize: '14px', color: '#0B1F22' }}>
-                  <span className="num-tabular">{patient.age}y</span> / {patient.gender}
+                <td className="px-5 py-4 text-sm text-ink">
+                  <span className="tabular-nums">{patient.age}y</span> / {patient.gender}
                 </td>
 
                 {/* Catchment Area */}
-                <td style={{ padding: '16px 20px', fontSize: '14px', color: '#5B6B6E' }}>
+                <td className="px-5 py-4 text-sm text-slate">
                   {patient.upazila}, {patient.district}
                 </td>
 
                 {/* Consent & Caregiver */}
-                <td style={{ padding: '16px 20px' }}>
+                <td className="px-5 py-4">
                   <StatusPill
                     label={
                       patient.consentStatus === 'active'
@@ -190,32 +147,23 @@ export const PatientsOperationalView: React.FC = () => {
                     variant={patient.consentStatus === 'active' ? 'completed' : 'upcoming'}
                   />
                   {patient.caregiverName && (
-                    <div style={{ fontSize: '11px', color: '#5B6B6E', marginTop: '2px' }}>
+                    <div className="mt-0.5 text-[11px] text-slate">
                       Caregiver: {patient.caregiverName}
                     </div>
                   )}
                 </td>
 
                 {/* Total Encounters */}
-                <td style={{ padding: '16px 20px', fontSize: '14px', color: '#0B1F22' }}>
-                  <strong className="num-tabular">{patient.totalEncounters}</strong> visits
+                <td className="px-5 py-4 text-sm text-ink">
+                  <strong className="tabular-nums">{patient.totalEncounters}</strong> visits
                 </td>
 
                 {/* Actions */}
-                <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                <td className="px-5 py-4 text-right">
                   <button
                     type="button"
                     onClick={() => setSelectedPatient(patient)}
-                    style={{
-                      padding: '6px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid #DDE5E1',
-                      backgroundColor: '#FFFFFF',
-                      color: '#1D6B66',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
+                    className="cursor-pointer rounded-pill border border-line bg-paper px-3.5 py-1.5 text-[13px] font-semibold text-teal transition hover:bg-mist"
                   >
                     Verify Identity
                   </button>
@@ -234,12 +182,12 @@ export const PatientsOperationalView: React.FC = () => {
           title={`Verify Identity: ${selectedPatient.fullName}`}
           subtitle={`Healora ID: ${selectedPatient.canonicalHealoraId}`}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ backgroundColor: '#F5F3EE', padding: '16px', borderRadius: '14px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0B1F22', marginBottom: '8px' }}>
+          <div className="flex flex-col gap-4">
+            <div className="rounded-ctl bg-bone p-4">
+              <div className="mb-2 text-[13px] font-semibold text-ink">
                 Demographic Profile
               </div>
-              <div style={{ fontSize: '14px', color: '#5B6B6E', lineHeight: 1.7 }}>
+              <div className="text-sm leading-[1.7] text-slate">
                 <strong>Full Name:</strong> {selectedPatient.fullName} ({selectedPatient.fullNameBn})
                 <br />
                 <strong>Age / Gender:</strong> {selectedPatient.age} years / {selectedPatient.gender}
@@ -252,12 +200,12 @@ export const PatientsOperationalView: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ border: '1px solid #CFE0D8', borderRadius: '14px', padding: '16px', backgroundColor: '#FFFFFF' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#22643F', marginBottom: '8px' }}>
+            <div className="rounded-ctl border border-sage-200 bg-paper p-4">
+              <div className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-ok-fg">
                 <PhCheckCircle size={16} color="#2F855A" />
                 <span>Bangladesh PDPA 2026 Consent Record</span>
               </div>
-              <div style={{ fontSize: '13px', color: '#5B6B6E', lineHeight: 1.6 }}>
+              <div className="text-[13px] leading-[1.6] text-slate">
                 • <strong>Consent Type:</strong> Physical Hub Basic Measurement &amp; Care Coordination
                 <br />
                 • <strong>Recorded Date:</strong> {selectedPatient.consentDate}
@@ -266,18 +214,17 @@ export const PatientsOperationalView: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-              <button
-                type="button"
+            <div className="mt-4 flex justify-end gap-2.5">
+              <Button
+                variant="primary"
+                fullWidth
                 onClick={() => {
                   showToast(`Patient ${selectedPatient.fullName} identity verified for hub encounter.`);
                   setSelectedPatient(null);
                 }}
-                className="btn-primary"
-                style={{ width: '100%' }}
               >
-                <span>Confirm Identity Match</span>
-              </button>
+                Confirm Identity Match
+              </Button>
             </div>
           </div>
         </ModalSheet>

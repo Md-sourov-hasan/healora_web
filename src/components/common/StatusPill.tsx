@@ -23,90 +23,36 @@ interface StatusPillProps {
   className?: string;
 }
 
+const styles: Record<StatusVariant, { pill: string; dot: string }> = {
+  completed: { pill: 'bg-ok-bg text-ok-fg', dot: 'bg-ok' },
+  active: { pill: 'bg-ok-bg text-ok-fg', dot: 'bg-ok' },
+  available: { pill: 'bg-ok-bg text-ok-fg', dot: 'bg-ok' },
+  awaiting: { pill: 'bg-warn-bg text-warn-fg', dot: 'bg-warn' },
+  busy: { pill: 'bg-warn-bg text-warn-fg', dot: 'bg-warn' },
+  calibration_due: { pill: 'bg-warn-bg text-warn-fg', dot: 'bg-warn' },
+  declined: { pill: 'bg-bad-bg text-bad-fg', dot: 'bg-bad' },
+  maintenance: { pill: 'bg-bad-bg text-bad-fg', dot: 'bg-bad' },
+  paused: { pill: 'bg-bad-bg text-bad-fg', dot: 'bg-bad' },
+  upcoming: { pill: 'bg-mist text-pine', dot: 'bg-teal' },
+  in_service: { pill: 'bg-mist text-pine', dot: 'bg-teal' },
+  teal: { pill: 'bg-teal text-white', dot: 'bg-white' },
+  clay: { pill: 'bg-clay text-white', dot: 'bg-white' },
+  draft: { pill: 'bg-draft-bg text-slate', dot: 'bg-slate' },
+};
+
 export const StatusPill: React.FC<StatusPillProps> = ({
   label,
   variant = 'draft',
   showDot = true,
   className = '',
 }) => {
-  let bg = '#EEEDE8';
-  let fg = '#5B6B6E';
-  let dotColor = '#5B6B6E';
-
-  switch (variant) {
-    case 'completed':
-    case 'active':
-    case 'available':
-      bg = '#E3F1E8';
-      fg = '#22643F';
-      dotColor = '#2F855A';
-      break;
-    case 'awaiting':
-    case 'busy':
-    case 'calibration_due':
-      bg = '#F8EDD8';
-      fg = '#80540F';
-      dotColor = '#B7791F';
-      break;
-    case 'declined':
-    case 'maintenance':
-    case 'paused':
-      bg = '#FBE4E4';
-      fg = '#9B2424';
-      dotColor = '#C53030';
-      break;
-    case 'upcoming':
-    case 'in_service':
-      bg = '#E6EEEA';
-      fg = '#0F3D3A';
-      dotColor = '#1D6B66';
-      break;
-    case 'teal':
-      bg = '#1D6B66';
-      fg = '#FFFFFF';
-      dotColor = '#FFFFFF';
-      break;
-    case 'clay':
-      bg = '#C0633F';
-      fg = '#FFFFFF';
-      dotColor = '#FFFFFF';
-      break;
-    default:
-      bg = '#EEEDE8';
-      fg = '#5B6B6E';
-      dotColor = '#5B6B6E';
-      break;
-  }
-
+  const s = styles[variant] ?? styles.draft;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-semibold leading-none rounded-[8px] whitespace-nowrap ${className}`}
-      style={{
-        backgroundColor: bg,
-        color: fg,
-        height: '24px',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '0 10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        fontWeight: 600,
-      }}
+      className={`inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-pill px-2.5 text-xs font-semibold capitalize leading-none ${s.pill} ${className}`}
     >
-      {showDot && (
-        <span
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '9999px',
-            backgroundColor: dotColor,
-            flexShrink: 0,
-          }}
-        />
-      )}
+      {showDot && <span className={`size-2 shrink-0 rounded-full ${s.dot}`} />}
       <span>{label}</span>
     </span>
   );
 };
-

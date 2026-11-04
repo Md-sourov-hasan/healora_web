@@ -8,7 +8,7 @@ import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { SegmentedTabs } from '../common/Tabs';
 import { ModalSheet } from '../common/ModalSheet';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../context/useApp';
 import type { QueueItem } from '../../types';
 
 export const LiveQueueView: React.FC = () => {
@@ -44,41 +44,25 @@ export const LiveQueueView: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1280px', margin: '0 auto' }}>
+    <div className="mx-auto max-w-7xl px-10 py-8">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div className="mb-6 flex items-start justify-between">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#1D6B66', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="text-xs font-semibold tracking-[0.04em] uppercase text-teal">
               {language === 'bn' ? 'লাইভ অপারেশন' : 'REAL-TIME QUEUE DISPATCH'}
             </span>
-            <span
-              className="pulse-live"
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '9999px',
-                backgroundColor: '#2F855A',
-              }}
-            />
+            <span className="size-2 animate-pulse-live rounded-full bg-ok" />
           </div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '28px',
-              fontWeight: 600,
-              color: '#0B1F22',
-              fontFamily: 'var(--ui)',
-            }}
-          >
+          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
             {t.navQueue}
           </h1>
-          <p style={{ margin: '4px 0 0 0', color: '#5B6B6E', fontSize: '14px' }}>
+          <p className="mt-1 mb-0 text-sm text-slate">
             {t.leastPrivilegeNote}
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="flex items-center gap-3">
           <Button
             variant="secondary"
             onClick={() => showToast('Refreshed real-time queue states from central broker.')}
@@ -90,7 +74,7 @@ export const LiveQueueView: React.FC = () => {
       </div>
 
       {/* Stations Status Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '28px' }}>
+      <div className="mb-7 grid grid-cols-4 gap-4">
         {hubStations.map((station) => {
           const waitingCount = hubQueue.filter((q) => q.stationId === station.id && q.currentStatus === 'waiting').length;
 
@@ -98,13 +82,12 @@ export const LiveQueueView: React.FC = () => {
             <Card
               key={station.id}
               variant="card"
-              style={{
-                borderTop: station.status === 'busy' ? '3px solid #1D6B66' : '3px solid #DDE5E1',
-                padding: '20px',
-              }}
+              className={`p-5! border-t-3! ${
+                station.status === 'busy' ? 'border-t-teal!' : 'border-t-line!'
+              }`}
             >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#5B6B6E' }}>
+              <div className="mb-2 flex items-start justify-between">
+                <span className="text-xs font-semibold text-slate">
                   {station.name.split(':')[0]}
                 </span>
                 <StatusPill
@@ -113,34 +96,26 @@ export const LiveQueueView: React.FC = () => {
                 />
               </div>
 
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 600, color: '#0B1F22' }}>
+              <h3 className="mt-0 mb-1 text-[15px] font-semibold text-ink">
                 {station.name.split(':')[1] || station.name}
               </h3>
-              <div style={{ fontSize: '12px', color: '#5B6B6E', marginBottom: '14px' }}>
-                Staff: <strong style={{ color: '#0B1F22' }}>{station.currentStaffName}</strong>
+              <div className="mb-3.5 text-xs text-slate">
+                Staff: <strong className="text-ink">{station.currentStaffName}</strong>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #DDE5E1' }}>
-                <div style={{ fontSize: '13px', color: '#5B6B6E' }}>
-                  <div>Serving: <strong style={{ color: '#0B1F22' }}>{station.currentTicketNumber || '—'}</strong></div>
-                  <div style={{ fontSize: '11px', color: '#1D6B66', fontWeight: 600 }}>Queue: {waitingCount} waiting</div>
+              <div className="flex items-center justify-between border-t border-line pt-3">
+                <div className="text-[13px] text-slate">
+                  <div>
+                    Serving: <strong className="text-ink">{station.currentTicketNumber || '—'}</strong>
+                  </div>
+                  <div className="text-[11px] font-semibold text-teal">
+                    Queue: {waitingCount} waiting
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => callNextPatient(station.id)}
-                  style={{
-                    backgroundColor: '#0B1F22',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-pill border-none bg-ink px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-ink-hover active:scale-[0.985]"
                 >
                   <span>{t.callNext}</span>
                 </button>
@@ -151,7 +126,7 @@ export const LiveQueueView: React.FC = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div style={{ marginBottom: '20px' }}>
+      <div className="mb-5">
         <SegmentedTabs
           options={tabOptions}
           activeKey={activeStationFilter}
@@ -160,71 +135,47 @@ export const LiveQueueView: React.FC = () => {
       </div>
 
       {/* Queue Table */}
-      <Card variant="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily: 'var(--ui)' }}>
+      <Card variant="card" className="p-0! overflow-hidden">
+        <table className="w-full border-collapse text-left font-ui">
           <thead>
-            <tr style={{ backgroundColor: '#F5F3EE', borderBottom: '1px solid #DDE5E1' }}>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+            <tr className="border-b border-line bg-bone">
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 {t.tokenNumber}
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 {t.patientName}
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 {t.station}
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 Service Type
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 Wait Time
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                 Queue Status
               </th>
-              <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase', textAlign: 'right' }}>
+              <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase text-slate">
                 {t.actions}
               </th>
             </tr>
           </thead>
           <tbody>
-            {filteredQueue.map((item, idx) => (
+            {filteredQueue.map((item) => (
               <tr
                 key={item.id}
-                style={{
-                  borderBottom: idx === filteredQueue.length - 1 ? 'none' : '1px solid #DDE5E1',
-                  transition: 'background-color 0.1s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F5F3EE')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                className="border-b border-line transition-colors duration-100 last:border-b-0 hover:bg-bone"
               >
                 {/* Token */}
-                <td style={{ padding: '16px 20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        backgroundColor: '#0B1F22',
-                        color: '#FFFFFF',
-                        fontWeight: 700,
-                        fontSize: '13px',
-                      }}
-                      className="num-tabular"
-                    >
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <span className="tabular-nums rounded-pill bg-ink px-2.5 py-1 text-[13px] font-bold text-white">
                       {item.ticketNumber}
                     </span>
                     {item.priority === 'priority_elderly' && (
-                      <span
-                        style={{
-                          fontSize: '10px',
-                          fontWeight: 700,
-                          backgroundColor: '#F8EDD8',
-                          color: '#80540F',
-                          padding: '2px 6px',
-                          borderRadius: '6px',
-                        }}
-                      >
+                      <span className="rounded-md bg-warn-bg px-1.5 py-0.5 text-[10px] font-bold text-warn-fg">
                         Elderly Priority
                       </span>
                     )}
@@ -232,38 +183,38 @@ export const LiveQueueView: React.FC = () => {
                 </td>
 
                 {/* Patient Name & Phone (Operational Least-Privilege) */}
-                <td style={{ padding: '16px 20px' }}>
-                  <div style={{ fontWeight: 600, fontSize: '15px', color: '#0B1F22' }}>
+                <td className="px-5 py-4">
+                  <div className="text-[15px] font-semibold text-ink">
                     {language === 'bn' ? item.patientNameBn : item.patientName}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#5B6B6E' }} className="num-tabular">
+                  <div className="tabular-nums text-xs text-slate">
                     {item.patientPhone}
                   </div>
                 </td>
 
                 {/* Station */}
-                <td style={{ padding: '16px 20px', fontSize: '14px', color: '#0B1F22' }}>
-                  <div style={{ fontWeight: 500 }}>{item.stationName}</div>
-                  <div style={{ fontSize: '12px', color: '#5B6B6E' }}>Staff: {item.assignedStaffName}</div>
+                <td className="px-5 py-4 text-sm text-ink">
+                  <div className="font-medium">{item.stationName}</div>
+                  <div className="text-xs text-slate">Staff: {item.assignedStaffName}</div>
                 </td>
 
                 {/* Service Type */}
-                <td style={{ padding: '16px 20px', fontSize: '14px', color: '#5B6B6E' }}>
+                <td className="px-5 py-4 text-sm text-slate">
                   {item.serviceType}
                 </td>
 
                 {/* Wait Time */}
-                <td style={{ padding: '16px 20px', fontSize: '14px', color: '#0B1F22' }}>
-                  <div className="num-tabular" style={{ fontWeight: 600 }}>
+                <td className="px-5 py-4 text-sm text-ink">
+                  <div className="tabular-nums font-semibold">
                     {item.waitMinutes} mins
                   </div>
-                  <div style={{ fontSize: '11px', color: '#5B6B6E' }}>
+                  <div className="text-[11px] text-slate">
                     Arr: {item.arrivalTime}
                   </div>
                 </td>
 
                 {/* Status Pill */}
-                <td style={{ padding: '16px 20px' }}>
+                <td className="px-5 py-4">
                   <StatusPill
                     label={item.currentStatus.replace('_', ' ')}
                     variant={
@@ -279,21 +230,12 @@ export const LiveQueueView: React.FC = () => {
                 </td>
 
                 {/* Actions */}
-                <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <td className="px-5 py-4 text-right">
+                  <div className="inline-flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setSelectedQueueItem(item)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid #DDE5E1',
-                        backgroundColor: '#FFFFFF',
-                        color: '#1D6B66',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
+                      className="cursor-pointer rounded-pill border border-line bg-paper px-3.5 py-1.5 text-[13px] font-semibold text-teal transition hover:bg-mist"
                     >
                       {language === 'bn' ? 'স্টেশন বদল / অ্যাকশন' : 'Dispatch / Action'}
                     </button>
@@ -313,52 +255,39 @@ export const LiveQueueView: React.FC = () => {
           title={`Ticket ${selectedQueueItem.ticketNumber} Dispatch`}
           subtitle={`Patient: ${selectedQueueItem.patientName} (${selectedQueueItem.patientPhone})`}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="flex flex-col gap-5">
             {/* Current Care Step Progress Bar */}
-            <div style={{ backgroundColor: '#F5F3EE', padding: '16px', borderRadius: '16px', border: '1px solid #DDE5E1' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '8px' }}>
+            <div className="rounded-2xl border border-line bg-bone p-4">
+              <div className="mb-2 text-[13px] font-semibold text-slate">
                 Encounter Progression:
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#0B1F22', marginBottom: '6px' }}>
+              <div className="mb-1.5 flex items-center justify-between text-xs text-ink">
                 <span>1. Intake</span>
                 <span>2. Vitals &amp; Lab</span>
                 <span>3. Dr. Review</span>
                 <span>4. Complete</span>
               </div>
-              <div style={{ width: '100%', height: '8px', borderRadius: '9999px', backgroundColor: '#CFE0D8', overflow: 'hidden' }}>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-sage-200">
                 <div
-                  style={{
-                    width: `${(selectedQueueItem.stepProgress / 4) * 100}%`,
-                    height: '100%',
-                    backgroundColor: '#1D6B66',
-                    transition: 'width 0.3s ease',
-                  }}
+                  className="h-full bg-teal transition-[width] duration-300 ease-organic"
+                  style={{ width: `${(selectedQueueItem.stepProgress / 4) * 100}%` }}
                 />
               </div>
             </div>
 
             {/* Advance Status Options */}
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '8px' }}>
+              <label className="mb-2 block text-[13px] font-semibold text-slate">
                 Update Queue Status:
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
                     advanceQueueStatus(selectedQueueItem.id, 'in_service');
                     setSelectedQueueItem(null);
                   }}
-                  style={{
-                    padding: '12px',
-                    borderRadius: '10px',
-                    border: '1px solid #1D6B66',
-                    backgroundColor: '#E6EEEA',
-                    color: '#0F3D3A',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
+                  className="cursor-pointer rounded-chip border border-teal bg-mist p-3 text-[13px] font-semibold text-pine transition hover:opacity-90"
                 >
                   Mark In-Service
                 </button>
@@ -368,16 +297,7 @@ export const LiveQueueView: React.FC = () => {
                     advanceQueueStatus(selectedQueueItem.id, 'awaiting_review');
                     setSelectedQueueItem(null);
                   }}
-                  style={{
-                    padding: '12px',
-                    borderRadius: '10px',
-                    border: '1px solid #DDE5E1',
-                    backgroundColor: '#FFFFFF',
-                    color: '#B7791F',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
+                  className="cursor-pointer rounded-chip border border-line bg-paper p-3 text-[13px] font-semibold text-warn transition hover:bg-bone"
                 >
                   Send for Doctor Review
                 </button>
@@ -387,16 +307,7 @@ export const LiveQueueView: React.FC = () => {
                     advanceQueueStatus(selectedQueueItem.id, 'completed');
                     setSelectedQueueItem(null);
                   }}
-                  style={{
-                    padding: '12px',
-                    borderRadius: '10px',
-                    border: '1px solid #2F855A',
-                    backgroundColor: '#E3F1E8',
-                    color: '#22643F',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
+                  className="cursor-pointer rounded-chip border border-ok bg-ok-bg p-3 text-[13px] font-semibold text-ok-fg transition hover:opacity-90"
                 >
                   Mark Completed
                 </button>
@@ -406,16 +317,7 @@ export const LiveQueueView: React.FC = () => {
                     advanceQueueStatus(selectedQueueItem.id, 'referred');
                     setSelectedQueueItem(null);
                   }}
-                  style={{
-                    padding: '12px',
-                    borderRadius: '10px',
-                    border: '1px solid #C0633F',
-                    backgroundColor: '#F8EDD8',
-                    color: '#C0633F',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
+                  className="cursor-pointer rounded-chip border border-clay bg-warn-bg p-3 text-[13px] font-semibold text-clay transition hover:opacity-90"
                 >
                   Refer / Escalate
                 </button>
@@ -424,37 +326,32 @@ export const LiveQueueView: React.FC = () => {
 
             {/* Transfer to Another Station */}
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '8px' }}>
+              <label className="mb-2 block text-[13px] font-semibold text-slate">
                 Transfer to Another Station:
               </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {hubStations.map((st) => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    disabled={st.id === selectedQueueItem.stationId}
-                    onClick={() => {
-                      transferStation(selectedQueueItem.id, st.id);
-                      setSelectedQueueItem(null);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 16px',
-                      borderRadius: '12px',
-                      border: '1px solid #DDE5E1',
-                      backgroundColor: st.id === selectedQueueItem.stationId ? '#F5F3EE' : '#FFFFFF',
-                      cursor: st.id === selectedQueueItem.stationId ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      color: st.id === selectedQueueItem.stationId ? '#5B6B6E' : '#0B1F22',
-                    }}
-                  >
-                    <span>{st.name}</span>
-                    <PhCaretRight size={16} color="#1D6B66" />
-                  </button>
-                ))}
+              <div className="flex flex-col gap-2">
+                {hubStations.map((st) => {
+                  const isCurrent = st.id === selectedQueueItem.stationId;
+                  return (
+                    <button
+                      key={st.id}
+                      type="button"
+                      disabled={isCurrent}
+                      onClick={() => {
+                        transferStation(selectedQueueItem.id, st.id);
+                        setSelectedQueueItem(null);
+                      }}
+                      className={`flex items-center justify-between rounded-xl border border-line px-4 py-3 text-sm font-medium transition ${
+                        isCurrent
+                          ? 'cursor-not-allowed bg-bone text-slate'
+                          : 'cursor-pointer bg-paper text-ink hover:bg-mist'
+                      }`}
+                    >
+                      <span>{st.name}</span>
+                      <PhCaretRight size={16} color="#1D6B66" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

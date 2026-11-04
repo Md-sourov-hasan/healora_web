@@ -13,70 +13,33 @@ interface TabsProps {
   className?: string;
 }
 
-export const SegmentedTabs: React.FC<TabsProps> = ({
-  options,
-  activeKey,
-  onChange,
-  className = '',
-}) => {
-  return (
-    <div
-      className={className}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        backgroundColor: '#EAE8E1',
-        borderRadius: '12px',
-        padding: '4px',
-        gap: '4px',
-        maxWidth: '100%',
-        overflowX: 'auto',
-      }}
-    >
-      {options.map((opt) => {
-        const isActive = opt.key === activeKey;
-        return (
-          <button
-            key={opt.key}
-            type="button"
-            onClick={() => onChange(opt.key)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              borderRadius: '9px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: isActive ? 600 : 500,
-              fontFamily: 'var(--ui)',
-              color: isActive ? '#0B1F22' : '#5B6B6E',
-              backgroundColor: isActive ? '#FFFFFF' : 'transparent',
-              boxShadow: isActive ? '0 1px 3px rgba(11,31,34,.10)' : 'none',
-              transition: 'all 0.15s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <span>{opt.label}</span>
-            {opt.count !== undefined && (
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  backgroundColor: isActive ? '#CFE0D8' : 'rgba(0,0,0,0.06)',
-                  color: isActive ? '#0F3D3A' : '#5B6B6E',
-                  padding: '2px 6px',
-                  borderRadius: '9999px',
-                }}
-              >
-                {opt.count}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-};
-
+export const SegmentedTabs: React.FC<TabsProps> = ({ options, activeKey, onChange, className = '' }) => (
+  <div className={`inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl bg-tab p-1 ${className}`}>
+    {options.map((opt) => {
+      const isActive = opt.key === activeKey;
+      return (
+        <button
+          key={opt.key}
+          type="button"
+          onClick={() => onChange(opt.key)}
+          className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-[9px] border-none px-4 py-2 text-sm transition-all duration-150 ${
+            isActive
+              ? 'bg-paper font-semibold text-ink shadow-[0_1px_3px_rgba(11,31,34,.10)]'
+              : 'bg-transparent font-medium text-slate hover:text-ink'
+          }`}
+        >
+          <span>{opt.label}</span>
+          {opt.count !== undefined && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                isActive ? 'bg-sage-200 text-pine' : 'bg-black/5 text-slate'
+              }`}
+            >
+              {opt.count}
+            </span>
+          )}
+        </button>
+      );
+    })}
+  </div>
+);

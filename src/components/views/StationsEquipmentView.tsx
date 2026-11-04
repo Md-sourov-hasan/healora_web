@@ -6,8 +6,10 @@ import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../context/useApp';
 import type { HubEquipment } from '../../types';
+
+const thClass = 'px-5 py-3.5 text-xs font-semibold uppercase text-slate';
 
 export const StationsEquipmentView: React.FC = () => {
   const {
@@ -27,29 +29,21 @@ export const StationsEquipmentView: React.FC = () => {
   const hubStations = stations.filter((s) => s.hubId === selectedHubId);
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1280px', margin: '0 auto' }}>
+    <div className="mx-auto max-w-7xl px-10 py-8">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div className="mb-6 flex items-start justify-between">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#1D6B66', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.04em] text-teal">
               {language === 'bn' ? 'চিকিৎসা সরঞ্জাম ও স্টেশন' : 'CERTIFIED DEVICES & STATION INVENTORY'}
             </span>
           </div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '28px',
-              fontWeight: 600,
-              color: '#0B1F22',
-              fontFamily: 'var(--ui)',
-            }}
-          >
+          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
             {t.navEquipment}
           </h1>
-          <p style={{ margin: '4px 0 0 0', color: '#5B6B6E', fontSize: '14px' }}>
+          <p className="mt-1 text-sm text-slate">
             {language === 'bn'
-              ? 'পরিমাপ ডিভাইসের নিয়মিত ক্যালিব্রেশন, ব্যাটারি ও সার্ভিসিং স্থিতি'
+              ? 'পরিমাপ ডিভাইসের নিয়মিত ক্যালিব্রেশন, ব্যাটারি ও সার্ভিসিং স্থিতি'
               : 'Medical device calibration schedules, maintenance logs & physical station readiness'}
           </p>
         </div>
@@ -64,15 +58,15 @@ export const StationsEquipmentView: React.FC = () => {
       </div>
 
       {/* Physical Stations Section */}
-      <div style={{ marginBottom: '32px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#0B1F22', marginBottom: '14px' }}>
-          {language === 'bn' ? 'হাবের সক্রিয় স্টেশনসমূহ' : 'Physical Service Stations'}
+      <div className="mb-8">
+        <h2 className="mb-3.5 text-lg font-semibold text-ink">
+          {language === 'bn' ? 'হাবের সক্রিয় স্টেশনসমূহ' : 'Physical Service Stations'}
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        <div className="grid grid-cols-4 gap-4">
           {hubStations.map((station) => (
-            <Card key={station.id} variant="card" style={{ padding: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#5B6B6E' }}>
+            <Card key={station.id} variant="card" className="p-4.5!">
+              <div className="mb-2.5 flex items-start justify-between">
+                <span className="text-xs font-semibold text-slate">
                   {station.stationType.toUpperCase()}
                 </span>
                 <StatusPill
@@ -81,14 +75,14 @@ export const StationsEquipmentView: React.FC = () => {
                 />
               </div>
 
-              <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 600, color: '#0B1F22' }}>
+              <h3 className="mb-1 mt-0 text-[15px] font-semibold text-ink">
                 {station.name}
               </h3>
-              <div style={{ fontSize: '13px', color: '#5B6B6E', marginBottom: '14px' }}>
-                Assigned: <strong style={{ color: '#0B1F22' }}>{station.currentStaffName}</strong>
+              <div className="mb-3.5 text-[13px] text-slate">
+                Assigned: <strong className="text-ink">{station.currentStaffName}</strong>
               </div>
 
-              <div style={{ display: 'flex', gap: '6px' }}>
+              <div className="flex gap-1.5">
                 <button
                   type="button"
                   onClick={() =>
@@ -97,17 +91,9 @@ export const StationsEquipmentView: React.FC = () => {
                       station.status === 'out_of_service' ? 'available' : 'out_of_service'
                     )
                   }
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #DDE5E1',
-                    backgroundColor: '#FFFFFF',
-                    color: station.status === 'out_of_service' ? '#2F855A' : '#C53030',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    width: '100%',
-                  }}
+                  className={`w-full cursor-pointer rounded-lg border border-line bg-paper px-3 py-1.5 text-xs font-semibold ${
+                    station.status === 'out_of_service' ? 'text-ok' : 'text-bad'
+                  }`}
                 >
                   {station.status === 'out_of_service' ? 'Set Available' : 'Set Out of Service'}
                 </button>
@@ -119,38 +105,38 @@ export const StationsEquipmentView: React.FC = () => {
 
       {/* Certified Medical Devices Section */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#0B1F22', margin: 0 }}>
+        <div className="mb-3.5 flex items-center justify-between">
+          <h2 className="m-0 text-lg font-semibold text-ink">
             {language === 'bn' ? 'চিকিৎসা সরঞ্জাম তালিকা ও ক্যালিব্রেশন' : 'Device Registry & Calibration Status'}
           </h2>
-          <span style={{ fontSize: '13px', color: '#5B6B6E' }}>
+          <span className="text-[13px] text-slate">
             Total Registered: <strong>{hubEquipment.length} devices</strong>
           </span>
         </div>
 
-        <Card variant="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily: 'var(--ui)' }}>
+        <Card variant="card" className="p-0! overflow-hidden">
+          <table className="w-full border-collapse text-left font-ui">
             <thead>
-              <tr style={{ backgroundColor: '#F5F3EE', borderBottom: '1px solid #DDE5E1' }}>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <tr className="border-b border-line bg-bone">
+                <th className={thClass}>
                   Device Code &amp; Name
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className={thClass}>
                   Model / Serial
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className={thClass}>
                   Station Assigned
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className={thClass}>
                   Last Calibrated
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className={thClass}>
                   Next Calibration
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className={thClass}>
                   Status
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase', textAlign: 'right' }}>
+                <th className={`${thClass} text-right`}>
                   {t.actions}
                 </th>
               </tr>
@@ -159,57 +145,51 @@ export const StationsEquipmentView: React.FC = () => {
               {hubEquipment.map((eq, idx) => (
                 <tr
                   key={eq.id}
-                  style={{
-                    borderBottom: idx === hubEquipment.length - 1 ? 'none' : '1px solid #DDE5E1',
-                    transition: 'background-color 0.1s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F5F3EE')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  className={`transition-colors duration-100 hover:bg-bone ${
+                    idx === hubEquipment.length - 1 ? '' : 'border-b border-line'
+                  }`}
                 >
                   {/* Code & Name */}
-                  <td style={{ padding: '16px 20px' }}>
-                    <div style={{ fontWeight: 600, fontSize: '14px', color: '#0B1F22' }}>
+                  <td className="px-5 py-4">
+                    <div className="text-sm font-semibold text-ink">
                       {eq.name}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#1D6B66', fontWeight: 600 }}>
+                    <div className="text-xs font-semibold text-teal">
                       Code: {eq.code}
                     </div>
                   </td>
 
                   {/* Model & Serial */}
-                  <td style={{ padding: '16px 20px', fontSize: '13px', color: '#5B6B6E' }}>
+                  <td className="px-5 py-4 text-[13px] text-slate">
                     <div>{eq.model}</div>
-                    <div className="num-tabular" style={{ fontSize: '11px', color: '#5B6B6E' }}>
+                    <div className="tabular-nums text-[11px] text-slate">
                       S/N: {eq.serialNumber}
                     </div>
                   </td>
 
                   {/* Station */}
-                  <td style={{ padding: '16px 20px', fontSize: '13px', color: '#0B1F22' }}>
+                  <td className="px-5 py-4 text-[13px] text-ink">
                     {eq.stationName || 'Inventory Buffer'}
                   </td>
 
                   {/* Last Calibration */}
-                  <td style={{ padding: '16px 20px', fontSize: '13px', color: '#5B6B6E' }} className="num-tabular">
+                  <td className="tabular-nums px-5 py-4 text-[13px] text-slate">
                     {eq.lastCalibrationDate}
                   </td>
 
                   {/* Next Calibration */}
-                  <td style={{ padding: '16px 20px' }}>
+                  <td className="px-5 py-4">
                     <span
-                      style={{
-                        fontSize: '13px',
-                        color: eq.status === 'calibration_due' ? '#C53030' : '#0B1F22',
-                        fontWeight: eq.status === 'calibration_due' ? 700 : 500,
-                      }}
-                      className="num-tabular"
+                      className={`tabular-nums text-[13px] ${
+                        eq.status === 'calibration_due' ? 'font-bold text-bad' : 'font-medium text-ink'
+                      }`}
                     >
                       {eq.nextCalibrationDue}
                     </span>
                   </td>
 
                   {/* Status */}
-                  <td style={{ padding: '16px 20px' }}>
+                  <td className="px-5 py-4">
                     <StatusPill
                       label={eq.status.replace('_', ' ')}
                       variant={
@@ -223,21 +203,12 @@ export const StationsEquipmentView: React.FC = () => {
                   </td>
 
                   {/* Actions */}
-                  <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                  <td className="px-5 py-4 text-right">
+                    <div className="inline-flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setSelectedDevice(eq)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid #DDE5E1',
-                          backgroundColor: '#FFFFFF',
-                          color: '#1D6B66',
-                          fontSize: '13px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
+                        className="cursor-pointer rounded-lg border border-line bg-paper px-3 py-1.5 text-[13px] font-semibold text-teal"
                       >
                         Inspect
                       </button>
@@ -249,16 +220,9 @@ export const StationsEquipmentView: React.FC = () => {
                             eq.status === 'out_of_service' ? 'available' : 'out_of_service'
                           )
                         }
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '8px',
-                          border: '1px solid #DDE5E1',
-                          backgroundColor: '#FFFFFF',
-                          color: eq.status === 'out_of_service' ? '#2F855A' : '#C53030',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
+                        className={`cursor-pointer rounded-lg border border-line bg-paper px-2.5 py-1.5 text-xs font-semibold ${
+                          eq.status === 'out_of_service' ? 'text-ok' : 'text-bad'
+                        }`}
                       >
                         {eq.status === 'out_of_service' ? 'Enable' : 'Halt'}
                       </button>
@@ -279,12 +243,12 @@ export const StationsEquipmentView: React.FC = () => {
           title={`Device Audit: ${selectedDevice.name}`}
           subtitle={`Serial Number: ${selectedDevice.serialNumber}`}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ backgroundColor: '#F5F3EE', padding: '16px', borderRadius: '14px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0B1F22', marginBottom: '8px' }}>
+          <div className="flex flex-col gap-4">
+            <div className="rounded-ctl bg-bone p-4">
+              <div className="mb-2 text-[13px] font-semibold text-ink">
                 Device Calibration &amp; Battery State
               </div>
-              <div style={{ fontSize: '13px', color: '#5B6B6E', lineHeight: 1.7 }}>
+              <div className="text-[13px] leading-[1.7] text-slate">
                 • <strong>Equipment Code:</strong> {selectedDevice.code}
                 <br />
                 • <strong>Category:</strong> {selectedDevice.category.toUpperCase()}
@@ -298,12 +262,12 @@ export const StationsEquipmentView: React.FC = () => {
             </div>
 
             {selectedDevice.notes && (
-              <div style={{ backgroundColor: '#E6EEEA', padding: '14px', borderRadius: '12px', fontSize: '13px', color: '#0F3D3A' }}>
+              <div className="rounded-xl bg-mist p-3.5 text-[13px] text-pine">
                 <strong>Quality Procedure Note:</strong> {selectedDevice.notes}
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <div className="mt-4 flex justify-end">
               <Button variant="secondary" onClick={() => setSelectedDevice(null)}>
                 Close Inspection
               </Button>

@@ -9,76 +9,31 @@ export const BangladeshBanner: React.FC = () => {
   if (dismissed) return null;
 
   return (
-    <div
-      style={{
-        backgroundColor: '#E6EEEA', // Mist
-        borderBottom: '1px solid #CFE0D8',
-        padding: '8px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        fontSize: '13px',
-        color: '#0F3D3A', // Pine
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            backgroundColor: '#FFFFFF',
-            padding: '3px 8px',
-            borderRadius: '6px',
-            fontWeight: 600,
-            fontSize: '11px',
-            color: '#1D6B66',
-            border: '1px solid #DDE5E1',
-          }}
-        >
+    <div className="flex items-center justify-between border-b border-sage-200 bg-mist px-6 py-2 text-[13px] text-pine">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="inline-flex items-center gap-1.5 rounded-md border border-line bg-paper px-2 py-0.5 text-[11px] font-semibold text-teal">
           <PhShieldCheck size={14} color="#1D6B66" />
           <span>PDPA 2026 &amp; DGHS Compliant</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="flex items-center gap-1.5">
           <PhMapPin size={14} color="#0F3D3A" />
           <span>
             {language === 'bn'
-              ? 'স্থানীয় ডাটা সেন্টার (AP-DCC Gazipur Tier-IV) এ সংরক্ষিত | বিএমডিসি টেলিমেডিসিন গাইডলাইন অনুসৃত'
+              ? 'স্থানীয় ডাটা সেন্টার (AP-DCC Gazipur Tier-IV) এ সংরক্ষিত | বিএমডিসি টেলিমেডিসিন গাইডলাইন অনুসৃত'
               : 'Local Data Residency: Hosted at AP-DCC Gazipur Tier-IV | BMDC Telemedicine Guidelines strictly enforced.'}
           </span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <span
-          style={{
-            fontSize: '11px',
-            color: '#5B6B6E',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          <span
-            style={{
-              width: '6px',
-              height: '6px',
-              borderRadius: '9999px',
-              backgroundColor: '#2F855A',
-            }}
-          />
-          {language === 'bn' ? 'নিরাপদ এনক্রিপশন সক্রিয়' : 'End-to-end Encrypted'}
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center gap-1 text-[11px] text-slate">
+          <span className="size-1.5 rounded-full bg-ok" />
+          {language === 'bn' ? 'নিরাপদ এনক্রিপশন সক্রিয়' : 'End-to-end Encrypted'}
         </span>
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#5B6B6E',
-            cursor: 'pointer',
-            padding: '2px',
-          }}
+          className="cursor-pointer border-none bg-transparent p-0.5 text-slate hover:text-ink"
           title="Dismiss"
         >
           <PhX size={14} />
@@ -87,4 +42,3 @@ export const BangladeshBanner: React.FC = () => {
     </div>
   );
 };
-

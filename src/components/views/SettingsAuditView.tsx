@@ -6,33 +6,25 @@ import {
 } from '../icons/PhosphorIcons';
 import { Card } from '../common/Card';
 import { StatusPill } from '../common/StatusPill';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../context/useApp';
 
 export const SettingsAuditView: React.FC = () => {
   const { t, language, auditLogs } = useApp();
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1280px', margin: '0 auto' }}>
+    <div className="mx-auto max-w-7xl px-10 py-8">
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#1D6B66', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      <div className="mb-6">
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="text-xs font-semibold tracking-[0.04em] uppercase text-teal">
             {language === 'bn' ? 'নিরাপত্তা ও আইনগত সম্মতি' : 'SECURITY, AUDIT TRAIL & REGULATORY GATES'}
           </span>
           <StatusPill label="Tier-IV Data Residency" variant="active" />
         </div>
-        <h1
-          style={{
-            margin: 0,
-            fontSize: '28px',
-            fontWeight: 600,
-            color: '#0B1F22',
-            fontFamily: 'var(--ui)',
-          }}
-        >
+        <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
           {t.navAudit}
         </h1>
-        <p style={{ margin: '4px 0 0 0', color: '#5B6B6E', fontSize: '14px' }}>
+        <p className="mt-1 mb-0 text-sm text-slate">
           {language === 'bn'
             ? 'অপরিবর্তনীয় সিস্টেম অডিট লগ ও বাংলাদেশ স্বাস্থ্য তথ্য সুরক্ষা গেজেট ২০২৬ বাস্তবায়ন'
             : 'Immutable system audit logging and compliance status under Bangladesh PDPA 2026 & DGHS Telehealth Guidelines'}
@@ -40,41 +32,41 @@ export const SettingsAuditView: React.FC = () => {
       </div>
 
       {/* Compliance Overview Grid (PRD Section 17) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '32px' }}>
-        <Card variant="card" style={{ borderTop: '3px solid #1D6B66' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+      <div className="mb-8 grid grid-cols-3 gap-5">
+        <Card variant="card" className="border-t-3! border-t-teal!">
+          <div className="mb-2.5 flex items-center gap-2">
             <PhShieldCheck size={20} color="#1D6B66" />
-            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#0B1F22' }}>
+            <h2 className="m-0 text-[15px] font-semibold text-ink">
               Personal Data Protection Act, 2026
             </h2>
           </div>
-          <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#5B6B6E', lineHeight: 1.5 }}>
+          <p className="mt-0 mb-2.5 text-[13px] leading-normal text-slate">
             Health-related information classified as sensitive personal data. Specific, voluntary informed consent captured for each hub encounter.
           </p>
           <StatusPill label="Act No. 63 of 2026 Compliant" variant="completed" />
         </Card>
 
-        <Card variant="card" style={{ borderTop: '3px solid #1D6B66' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+        <Card variant="card" className="border-t-3! border-t-teal!">
+          <div className="mb-2.5 flex items-center gap-2">
             <PhMapPin size={20} color="#1D6B66" />
-            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#0B1F22' }}>
+            <h2 className="m-0 text-[15px] font-semibold text-ink">
               DGHS Telehealth Data Residency
             </h2>
           </div>
-          <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#5B6B6E', lineHeight: 1.5 }}>
+          <p className="mt-0 mb-2.5 text-[13px] leading-normal text-slate">
             Zero foreign cloud storage for patient vitals. Primary database and encrypted backups hosted within Bangladesh at AP-DCC Gazipur Tier-IV.
           </p>
           <StatusPill label="Local Residency Verified" variant="completed" />
         </Card>
 
-        <Card variant="card" style={{ borderTop: '3px solid #1D6B66' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+        <Card variant="card" className="border-t-3! border-t-teal!">
+          <div className="mb-2.5 flex items-center gap-2">
             <PhCheckCircle size={20} color="#1D6B66" />
-            <h2 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#0B1F22' }}>
+            <h2 className="m-0 text-[15px] font-semibold text-ink">
               BMDC Telemedicine Guidelines
             </h2>
           </div>
-          <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#5B6B6E', lineHeight: 1.5 }}>
+          <p className="mt-0 mb-2.5 text-[13px] leading-normal text-slate">
             Registered practitioner verification, explicit consent for remote consultations, and health worker measurement provenance preserved.
           </p>
           <StatusPill label="BMDC Framework Aligned" variant="completed" />
@@ -83,82 +75,77 @@ export const SettingsAuditView: React.FC = () => {
 
       {/* Immutable Audit Log Table (PRD Section 16.2) */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#0B1F22', margin: 0 }}>
+        <div className="mb-3.5 flex items-center justify-between">
+          <h2 className="m-0 text-lg font-semibold text-ink">
             {language === 'bn' ? 'অপরিবর্তনীয় অডিট ট্রেইল (সর্বশেষ কার্যক্রম)' : 'Immutable Operations Audit Trail'}
           </h2>
-          <span style={{ fontSize: '12px', color: '#5B6B6E' }}>
+          <span className="text-xs text-slate">
             Append-only verification log • <strong>{auditLogs.length} events logged</strong>
           </span>
         </div>
 
-        <Card variant="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontFamily: 'var(--ui)' }}>
+        <Card variant="card" className="p-0! overflow-hidden">
+          <table className="w-full border-collapse text-left font-ui">
             <thead>
-              <tr style={{ backgroundColor: '#F5F3EE', borderBottom: '1px solid #DDE5E1' }}>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+              <tr className="border-b border-line bg-bone">
+                <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                   Timestamp
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                   Actor &amp; Role
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                   Action Executed
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                   Scope / Hub
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase' }}>
+                <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">
                   Audit Details
                 </th>
-                <th style={{ padding: '14px 20px', fontSize: '12px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase', textAlign: 'right' }}>
+                <th className="px-5 py-3.5 text-right text-xs font-semibold uppercase text-slate">
                   Outcome
                 </th>
               </tr>
             </thead>
             <tbody>
-              {auditLogs.map((log, idx) => (
+              {auditLogs.map((log) => (
                 <tr
                   key={log.id}
-                  style={{
-                    borderBottom: idx === auditLogs.length - 1 ? 'none' : '1px solid #DDE5E1',
-                    transition: 'background-color 0.1s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F5F3EE')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  className="border-b border-line transition-colors duration-100 last:border-b-0 hover:bg-bone"
                 >
                   {/* Timestamp */}
-                  <td style={{ padding: '16px 20px', fontSize: '13px', color: '#5B6B6E' }} className="num-tabular">
+                  <td className="tabular-nums px-5 py-4 text-[13px] text-slate">
                     {log.timestamp}
                   </td>
 
                   {/* Actor & Role */}
-                  <td style={{ padding: '16px 20px' }}>
-                    <div style={{ fontWeight: 600, fontSize: '14px', color: '#0B1F22' }}>
+                  <td className="px-5 py-4">
+                    <div className="text-sm font-semibold text-ink">
                       {log.actorName}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#1D6B66', textTransform: 'uppercase', fontWeight: 600 }}>
+                    <div className="text-[11px] font-semibold uppercase text-teal">
                       {log.actorRole.replace('_', ' ')}
                     </div>
                   </td>
 
                   {/* Action */}
-                  <td style={{ padding: '16px 20px', fontSize: '14px', color: '#0B1F22', fontWeight: 500 }}>
+                  <td className="px-5 py-4 text-sm font-medium text-ink">
                     {log.action}
                   </td>
 
                   {/* Scope */}
-                  <td style={{ padding: '16px 20px', fontSize: '13px', color: '#5B6B6E' }}>
+                  <td className="px-5 py-4 text-[13px] text-slate">
                     {log.hubName}
                   </td>
 
                   {/* Details */}
-                  <td style={{ padding: '16px 20px', fontSize: '13px', color: '#5B6B6E', maxWidth: '320px' }}>
+                  <td className="max-w-xs px-5 py-4 text-[13px] text-slate">
                     {log.details}
                   </td>
 
                   {/* Outcome */}
-                  <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                  <td className="px-5 py-4 text-right">
                     <StatusPill
                       label={log.outcome.toUpperCase()}
                       variant={

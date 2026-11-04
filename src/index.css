@@ -1,335 +1,112 @@
-:root {
-  /* Organic Clinical - Healora Design System Colors (Nov 2026) */
-  --bone: #F5F3EE;
-  --paper: #FFFFFF;
-  --line: #DDE5E1;
-  --slate: #5B6B6E;
-  --ink: #0B1F22;
-  --mist: #E6EEEA;
-  --sage2: #CFE0D8;
-  --sage4: #8FB3A3;
-  --teal: #1D6B66;
-  --pine: #0F3D3A;
-  --clay: #C0633F;
-  --clay6: #A4502F;
-  --amber: #E3A83B;
-  --ok: #2F855A;
-  --warn: #B7791F;
-  --bad: #C53030;
-  --wash: linear-gradient(180deg, #D7E6E0 0%, #EEF3F0 55%, #F5F3EE 100%);
+@import "tailwindcss";
 
-  /* Status Colors & Tints */
-  --status-ok-bg: #E3F1E8;
-  --status-ok-fg: #22643F;
-  --status-warn-bg: #F8EDD8;
-  --status-warn-fg: #80540F;
-  --status-bad-bg: #FBE4E4;
-  --status-bad-fg: #9B2424;
-  --status-upcoming-bg: #E6EEEA;
-  --status-upcoming-fg: #0F3D3A;
-  --status-draft-bg: #EEEDE8;
-  --status-draft-fg: #5B6B6E;
+/* Healora Design System — "Organic clinical" tokens exposed as Tailwind utilities
+   e.g. bg-bone, text-ink, border-line, bg-mist, text-teal, rounded-card, shadow-card, font-disp */
+@theme {
+  --color-bone: #F5F3EE;
+  --color-paper: #FFFFFF;
+  --color-line: #DDE5E1;
+  --color-slate: #5B6B6E;
+  --color-ink: #0B1F22;
+  --color-ink-hover: #13302F;
+  --color-ink-press: #06141A;
+  --color-mist: #E6EEEA;
+  --color-sage-200: #CFE0D8;
+  --color-sage-400: #8FB3A3;
+  --color-teal: #1D6B66;
+  --color-pine: #0F3D3A;
+  --color-clay: #C0633F;
+  --color-clay-600: #A4502F;
+  --color-amber: #E3A83B;
+  --color-ok: #2F855A;
+  --color-warn: #B7791F;
+  --color-bad: #C53030;
+  --color-tab: #EAE8E1;
+
+  /* Status tints */
+  --color-ok-bg: #E3F1E8;
+  --color-ok-fg: #22643F;
+  --color-warn-bg: #F8EDD8;
+  --color-warn-fg: #80540F;
+  --color-bad-bg: #FBE4E4;
+  --color-bad-fg: #9B2424;
+  --color-draft-bg: #EEEDE8;
 
   /* Typography */
-  --ui: "Instrument Sans", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
-  --disp: "Instrument Serif", Georgia, serif;
+  --font-ui: "Instrument Sans", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
+  --font-disp: "Instrument Serif", Georgia, serif;
 
-  /* Radius Scale */
-  --r-pill: 8px;
-  --r-chip: 10px;
-  --r-ctl: 14px;
-  --r-tile: 18px;
-  --r-bar: 22px;
-  --r-card: 24px;
-  --r-sheet: 28px;
-  --r-full: 9999px;
+  /* Radius scale */
+  --radius-pill: 8px;
+  --radius-chip: 10px;
+  --radius-ctl: 14px;
+  --radius-tile: 18px;
+  --radius-bar: 22px;
+  --radius-card: 24px;
+  --radius-sheet: 28px;
 
   /* Elevation */
-  --sh-card: 0 1px 2px rgba(11, 31, 34, 0.06), 0 8px 24px -12px rgba(11, 31, 34, 0.12);
-  --sh-float: 0 12px 32px -10px rgba(11, 31, 34, 0.28);
-  --sh-raised: 0 10px 20px -8px rgba(11, 31, 34, 0.50);
+  --shadow-card: 0 1px 2px rgba(11, 31, 34, 0.06), 0 8px 24px -12px rgba(11, 31, 34, 0.12);
+  --shadow-float: 0 12px 32px -10px rgba(11, 31, 34, 0.28);
+  --shadow-raised: 0 10px 20px -8px rgba(11, 31, 34, 0.5);
 
   /* Motion */
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --t-press: 100ms;
-  --t-fast: 150ms;
-  --t-base: 200ms;
-  --t-sheet: 350ms;
+  --ease-organic: cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  /* Spacing Scale (4px base) */
-  --space-0-5: 2px;
-  --space-1: 4px;
-  --space-1-5: 6px;
-  --space-2: 8px;
-  --space-2-5: 10px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-7: 28px;
-  --space-8: 32px;
-  --space-10: 40px;
+  --animate-pulse-live: pulse-live 2s ease-in-out infinite;
+  --animate-heart: heart 2.4s ease-in-out infinite;
+  --animate-slide-in: slide-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-up: fade-up 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  /* Default text and backgrounds */
-  font-family: var(--ui);
-  color: var(--ink);
-  background-color: var(--bone);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  @keyframes pulse-live {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.08); opacity: 0.8; }
+  }
+  @keyframes heart {
+    0%, 28%, 70%, 100% { transform: scale(1); }
+    14% { transform: scale(1.15); }
+    42% { transform: scale(1.1); }
+  }
+  @keyframes slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translate(-50%, 8px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
+@layer base {
+  html, body {
+    @apply m-0 min-h-screen bg-bone font-ui text-ink antialiased;
+  }
+  #root {
+    @apply flex min-h-screen flex-col;
+  }
 }
 
-html, body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--bone);
-  color: var(--ink);
-  font-family: var(--ui);
-  min-height: 100vh;
-}
+/* Tailwind utilities for the app-wide accessibility preferences. */
+@layer base {
+  body.lang-bn {
+    @apply leading-[1.65];
+  }
 
-#root {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
+  body.lang-bn h1,
+  body.lang-bn h2,
+  body.lang-bn h3 {
+    @apply leading-[1.38];
+  }
 
-/* Bangla line height adjustment (Design System Ch 3) */
-.lang-bn {
-  line-height: 1.65 !important;
-}
-.lang-bn h1, .lang-bn h2, .lang-bn h3 {
-  line-height: 1.38 !important;
-}
+  body.simple-mode {
+    @apply text-lg;
+  }
 
-/* Simple Mode (Accessibility Ch 11) */
-body.simple-mode {
-  font-size: 18px !important;
-  --space-4: 20px;
-  --space-5: 24px;
-}
-body.simple-mode button {
-  min-height: 56px !important;
-  font-size: 18px !important;
-}
-body.simple-mode .icon-square {
-  width: 56px !important;
-  height: 56px !important;
-}
-body.simple-mode * {
-  animation: none !important;
-  transition-duration: 0.05s !important;
-}
+  body.simple-mode button {
+    @apply min-h-14 text-lg;
+  }
 
-/* Tabular Numerals (Design System Ch 3: Prices, times, counts and dates) */
-.num-tabular {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-
-/* Display Serif */
-.font-disp {
-  font-family: var(--disp);
-}
-
-/* Button & Card interactive hover states (Web Ch 12) */
-.clickable-card {
-  cursor: pointer;
-  transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
-}
-.clickable-card:hover {
-  box-shadow: var(--sh-float);
-  transform: translateY(-2px);
-}
-.clickable-card:active {
-  transform: scale(0.985);
-}
-
-/* Primary Ink Button with press transition */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 56px;
-  min-width: 180px;
-  padding: 0 16px 0 24px;
-  border-radius: var(--r-ctl);
-  background-color: var(--ink);
-  color: #FFFFFF;
-  font-family: var(--ui);
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease-out), transform var(--t-press) var(--ease-out);
-}
-.btn-primary:hover {
-  background-color: #13302F;
-}
-.btn-primary:active {
-  background-color: #06141A;
-  transform: scale(0.985);
-}
-.btn-primary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn-primary-small {
-  height: 44px;
-  padding: 0 12px 0 16px;
-  font-size: 15px;
-  min-width: 140px;
-}
-
-/* Arrow chip inside primary button */
-.btn-arrow-chip {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--r-full);
-  background-color: rgba(255, 255, 255, 0.14);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 12px;
-  flex-shrink: 0;
-  transition: transform var(--t-fast) var(--ease-out);
-}
-.btn-primary:hover .btn-arrow-chip {
-  transform: translate(2px, -2px);
-}
-.btn-primary-small .btn-arrow-chip {
-  width: 28px;
-  height: 28px;
-}
-
-/* Secondary Paper Button */
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 56px;
-  min-width: 160px;
-  padding: 0 24px;
-  border-radius: var(--r-ctl);
-  background-color: var(--paper);
-  color: var(--ink);
-  font-family: var(--ui);
-  font-size: 16px;
-  font-weight: 600;
-  border: 1px solid var(--line);
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease-out), transform var(--t-press) var(--ease-out);
-}
-.btn-secondary:hover {
-  background-color: var(--mist);
-}
-.btn-secondary:active {
-  transform: scale(0.985);
-}
-.btn-secondary-small {
-  height: 44px;
-  padding: 0 16px;
-  font-size: 15px;
-}
-
-/* Text Button */
-.btn-text {
-  background: none;
-  border: none;
-  padding: 8px 12px;
-  color: var(--teal);
-  font-family: var(--ui);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: var(--r-pill);
-  transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
-}
-.btn-text:hover {
-  color: var(--pine);
-  background-color: var(--mist);
-}
-
-/* Icon Button */
-.btn-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--r-full);
-  background-color: var(--paper);
-  border: 1px solid var(--line);
-  color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease-out), transform var(--t-press) var(--ease-out);
-  flex-shrink: 0;
-  position: relative;
-}
-.btn-icon:hover {
-  background-color: var(--mist);
-}
-.btn-icon:active {
-  transform: scale(0.96);
-}
-.btn-icon-ghost {
-  background-color: transparent;
-  border-color: transparent;
-}
-.btn-icon-ghost:hover {
-  background-color: var(--mist);
-}
-
-/* Custom Scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bone);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--sage2);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--sage4);
-}
-
-/* Pulse animation for active sync and live indicators */
-@keyframes healoraPulse {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.08); opacity: 0.8; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.pulse-live {
-  animation: healoraPulse 2s infinite ease-in-out;
-}
-
-/* Heartbeat loop for the clay quote heart (Design System Ch 9: 2.4s loop) */
-@keyframes heartPulse {
-  0%, 100% { transform: scale(1); }
-  14% { transform: scale(1.15); }
-  28% { transform: scale(1); }
-  42% { transform: scale(1.1); }
-  70% { transform: scale(1); }
-}
-
-.heart-pulsing {
-  animation: heartPulse 2.4s infinite ease-in-out;
-}
-
-/* Wash header background */
-.wash-bg {
-  background: var(--wash);
+  body.simple-mode * {
+    @apply !animate-none !duration-50;
+  }
 }

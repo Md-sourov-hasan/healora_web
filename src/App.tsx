@@ -50,20 +50,12 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        backgroundColor: '#F5F3EE', // Bone
-        fontFamily: 'var(--ui)',
-        color: '#0B1F22',
-      }}
-    >
+    <div className="flex min-h-screen bg-bone font-ui text-ink">
       {/* 248px Desktop Sidebar (Design System Ch 12) */}
       <Sidebar />
 
       {/* Main Content Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Compliance & Data Residency Top Banner */}
         <BangladeshBanner />
 
@@ -71,7 +63,7 @@ const AppContent: React.FC = () => {
         <TopHeader />
 
         {/* Dynamic View Canvas */}
-        <main style={{ flex: 1, paddingBottom: '60px' }}>
+        <main className="flex-1 pb-[60px]">
           {renderActiveView()}
         </main>
       </div>
@@ -81,26 +73,7 @@ const AppContent: React.FC = () => {
 
       {/* Organic Toast Notification (Design System Ch 7.9: Toast ink, r14 sits 118px above the bottom) */}
       {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '118px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: '#0B1F22', // Ink
-            color: '#FFFFFF',
-            padding: '12px 24px',
-            borderRadius: '14px',
-            boxShadow: '0 12px 32px -10px rgba(11,31,34,.28)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            fontSize: '14px',
-            fontWeight: 600,
-            zIndex: 1000,
-            animation: 'fadeInUp 0.25s cubic-bezier(.2,.8,.2,1)',
-          }}
-        >
+        <div className="fixed bottom-[118px] left-1/2 z-[1000] flex -translate-x-1/2 animate-fade-up items-center gap-2.5 rounded-ctl bg-ink px-6 py-3 text-sm font-semibold text-white shadow-float">
           <PhCheckCircle size={18} color="#8FB3A3" />
           <span>{toast}</span>
         </div>

@@ -9,7 +9,7 @@ import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../context/useApp';
 import type { Hub } from '../../types';
 
 export const HubsView: React.FC = () => {
@@ -17,29 +17,21 @@ export const HubsView: React.FC = () => {
   const [selectedHubForEdit, setSelectedHubForEdit] = useState<Hub | null>(null);
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1280px', margin: '0 auto' }}>
+    <div className="mx-auto max-w-7xl px-10 py-8">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div className="mb-6 flex items-start justify-between">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#1D6B66', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.04em] text-teal">
               {language === 'bn' ? 'ভৌগোলিক অবকাঠামো' : 'PHYSICAL CATCHMENT INFRASTRUCTURE'}
             </span>
           </div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '28px',
-              fontWeight: 600,
-              color: '#0B1F22',
-              fontFamily: 'var(--ui)',
-            }}
-          >
+          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
             {t.navHubs}
           </h1>
-          <p style={{ margin: '4px 0 0 0', color: '#5B6B6E', fontSize: '14px' }}>
+          <p className="mt-1 text-sm text-slate">
             {language === 'bn'
-              ? 'নির্ধারিত ভৌগোলিক এলাকাভিত্তিক স্থায়ী ও আউটরিচ কেন্দ্রসমূহ'
+              ? 'নির্ধারিত ভৌগোলিক এলাকাভিত্তিক স্থায়ী ও আউটরিচ কেন্দ্রসমূহ'
               : 'Configured physical service hubs serving district and upazila catchment areas'}
           </p>
         </div>
@@ -54,7 +46,7 @@ export const HubsView: React.FC = () => {
       </div>
 
       {/* Hub Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
+      <div className="grid grid-cols-2 gap-6">
         {hubs.map((hub) => {
           const isSelected = hub.id === selectedHubId;
 
@@ -62,62 +54,23 @@ export const HubsView: React.FC = () => {
             <Card
               key={hub.id}
               variant="card"
-              style={{
-                border: isSelected ? '2px solid #1D6B66' : '1px solid #DDE5E1',
-                position: 'relative',
-              }}
+              className={`relative ${isSelected ? 'border-2! border-teal!' : 'border! border-line!'}`}
             >
               {isSelected && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '16px',
-                    right: '16px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    backgroundColor: '#1D6B66',
-                    color: '#FFFFFF',
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                  }}
-                >
+                <div className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-md bg-teal px-2 py-0.75 text-[11px] font-semibold text-white">
                   <PhCheckCircle size={12} color="#FFFFFF" />
                   Active Selection
                 </div>
               )}
 
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '16px' }}>
-                <div
-                  style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '14px',
-                    backgroundColor: '#CFE0D8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#0F3D3A',
-                    flexShrink: 0,
-                  }}
-                >
+              <div className="mb-4 flex items-start gap-3.5">
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-ctl bg-sage-200 text-pine">
                   <PhHospital size={24} />
                 </div>
 
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span
-                      style={{
-                        padding: '2px 6px',
-                        backgroundColor: '#0B1F22',
-                        color: '#FFFFFF',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                      }}
-                    >
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-md bg-ink px-1.5 py-0.5 text-[11px] font-bold text-white">
                       {hub.code}
                     </span>
                     <StatusPill
@@ -126,55 +79,48 @@ export const HubsView: React.FC = () => {
                     />
                   </div>
 
-                  <h2 style={{ margin: '6px 0 2px 0', fontSize: '18px', fontWeight: 600, color: '#0B1F22' }}>
+                  <h2 className="mb-0.5 mt-1.5 text-lg font-semibold text-ink">
                     {language === 'bn' ? hub.nameBn : hub.name}
                   </h2>
-                  <div style={{ fontSize: '13px', color: '#5B6B6E' }}>
+                  <div className="text-[13px] text-slate">
                     {hub.district}, {hub.division} • Upazila: {hub.upazila} ({hub.unionName})
                   </div>
                 </div>
               </div>
 
               {/* Catchment & Address */}
-              <div style={{ backgroundColor: '#F5F3EE', padding: '14px', borderRadius: '14px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#0F3D3A', marginBottom: '4px' }}>
+              <div className="mb-4 rounded-ctl bg-bone p-3.5">
+                <div className="mb-1 flex items-center gap-1.5 text-[13px] text-pine">
                   <PhMapPin size={16} color="#1D6B66" />
-                  <span style={{ fontWeight: 600 }}>Physical Address:</span>
+                  <span className="font-semibold">Physical Address:</span>
                 </div>
-                <div style={{ fontSize: '13px', color: '#5B6B6E', paddingLeft: '22px' }}>
+                <div className="pl-5.5 text-[13px] text-slate">
                   {language === 'bn' ? hub.addressBn : hub.address}
                 </div>
-                <div style={{ fontSize: '12px', color: '#5B6B6E', paddingLeft: '22px', marginTop: '4px' }}>
+                <div className="mt-1 pl-5.5 text-xs text-slate">
                   Operating: {hub.operatingHours} • Contact: {hub.phone}
                 </div>
               </div>
 
               {/* Emergency Referral Hospital (PRD Section 8.3 & 13.3) */}
-              <div style={{ borderLeft: '3px solid #C0633F', paddingLeft: '12px', marginBottom: '16px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#C0633F', textTransform: 'uppercase' }}>
+              <div className="mb-4 border-l-3 border-clay pl-3">
+                <div className="text-[11px] font-bold uppercase text-clay">
                   {language === 'bn' ? 'জরুরি রেফারেল হাসপাতাল যোগাযোগ' : 'Emergency Referral Facility SOP'}
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0B1F22' }}>
+                <div className="text-[13px] font-semibold text-ink">
                   {hub.emergencyReferralFacility}
                 </div>
-                <div style={{ fontSize: '12px', color: '#5B6B6E' }}>
+                <div className="text-xs text-slate">
                   Direct Medical Hotline: {hub.emergencyPhone}
                 </div>
               </div>
 
               {/* Services offered badges */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
+              <div className="mb-5 flex flex-wrap gap-1.5">
                 {hub.services.map((srv) => (
                   <span
                     key={srv}
-                    style={{
-                      fontSize: '11px',
-                      backgroundColor: '#E6EEEA',
-                      color: '#0F3D3A',
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      fontWeight: 500,
-                    }}
+                    className="rounded-md bg-mist px-2 py-0.75 text-[11px] font-medium text-pine"
                   >
                     {srv}
                   </span>
@@ -182,12 +128,12 @@ export const HubsView: React.FC = () => {
               </div>
 
               {/* Footer details & Action */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '16px', borderTop: '1px solid #DDE5E1' }}>
-                <div style={{ fontSize: '13px', color: '#5B6B6E' }}>
-                  Manager: <strong style={{ color: '#0B1F22' }}>{hub.assignedManager}</strong>
+              <div className="flex items-center justify-between border-t border-line pt-4">
+                <div className="text-[13px] text-slate">
+                  Manager: <strong className="text-ink">{hub.assignedManager}</strong>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="flex items-center gap-2">
                   {!isSelected ? (
                     <button
                       type="button"
@@ -195,16 +141,7 @@ export const HubsView: React.FC = () => {
                         setSelectedHubId(hub.id);
                         showToast(`Switched active operational console to: ${hub.name}`);
                       }}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '10px',
-                        backgroundColor: '#0B1F22',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
+                      className="cursor-pointer rounded-chip border-none bg-ink px-4 py-2 text-[13px] font-semibold text-white"
                     >
                       {language === 'bn' ? 'এই হাব নির্বাচন করুন' : 'Select This Hub'}
                     </button>
@@ -212,16 +149,7 @@ export const HubsView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setSelectedHubForEdit(hub)}
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '10px',
-                        backgroundColor: '#F5F3EE',
-                        border: '1px solid #DDE5E1',
-                        color: '#0B1F22',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
+                      className="cursor-pointer rounded-chip border border-line bg-bone px-4 py-2 text-[13px] font-semibold text-ink"
                     >
                       {language === 'bn' ? 'প্রোফাইল সম্পাদন' : 'Edit Profile'}
                     </button>
@@ -241,65 +169,41 @@ export const HubsView: React.FC = () => {
           title={`Edit Hub Profile: ${selectedHubForEdit.name}`}
           subtitle="Update catchment, operating hours, and emergency escalation protocol"
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="flex flex-col gap-4">
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 Operating Hours
               </label>
               <input
                 type="text"
                 defaultValue={selectedHubForEdit.operatingHours}
-                style={{
-                  width: '100%',
-                  height: '46px',
-                  borderRadius: '10px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                  fontFamily: 'var(--ui)',
-                }}
+                className="h-11.5 w-full rounded-chip border border-line px-3 font-ui text-sm"
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 Emergency Referral Hospital SOP
               </label>
               <input
                 type="text"
                 defaultValue={selectedHubForEdit.emergencyReferralFacility}
-                style={{
-                  width: '100%',
-                  height: '46px',
-                  borderRadius: '10px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                  fontFamily: 'var(--ui)',
-                }}
+                className="h-11.5 w-full rounded-chip border border-line px-3 font-ui text-sm"
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 Emergency Liaison Direct Phone
               </label>
               <input
                 type="text"
                 defaultValue={selectedHubForEdit.emergencyPhone}
-                style={{
-                  width: '100%',
-                  height: '46px',
-                  borderRadius: '10px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                  fontFamily: 'var(--ui)',
-                }}
+                className="h-11.5 w-full rounded-chip border border-line px-3 font-ui text-sm"
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+            <div className="mt-4 flex justify-end gap-2.5">
               <Button variant="secondary" onClick={() => setSelectedHubForEdit(null)}>
                 {t.cancel}
               </Button>

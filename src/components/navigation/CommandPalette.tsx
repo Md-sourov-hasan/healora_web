@@ -61,46 +61,15 @@ export const CommandPalette: React.FC = () => {
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(11, 31, 34, 0.45)',
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        paddingTop: '100px',
-        backdropFilter: 'blur(4px)',
-      }}
+      className="fixed inset-0 z-[1000] flex items-start justify-center bg-ink/45 pt-[100px] backdrop-blur-xs"
       onClick={() => setIsCommandPaletteOpen(false)}
     >
       <div
-        style={{
-          width: '580px',
-          maxWidth: '92%',
-          backgroundColor: '#FFFFFF',
-          borderRadius: '24px',
-          boxShadow: '0 12px 32px -10px rgba(11,31,34,.28)',
-          border: '1px solid #DDE5E1',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+        className="flex w-[580px] max-w-[92%] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-float"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Bar */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '18px 24px',
-            borderBottom: '1px solid #DDE5E1',
-          }}
-        >
+        <div className="flex items-center gap-3 border-b border-line px-6 py-[18px]">
           <PhMagnifyingGlass size={20} color="#1D6B66" />
           <input
             type="text"
@@ -112,53 +81,32 @@ export const CommandPalette: React.FC = () => {
                 ? 'রোগীর নাম, সিরিয়াল টোকেন বা হাব দিয়ে খুঁজুন...'
                 : 'Search patients, tokens (e.g. A-101), hubs, or actions...'
             }
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              fontFamily: 'var(--ui)',
-              fontSize: '16px',
-              color: '#0B1F22',
-            }}
+            className="flex-1 border-none bg-transparent font-ui text-base text-ink outline-none placeholder:text-slate/70"
           />
           <button
             type="button"
             onClick={() => setIsCommandPaletteOpen(false)}
-            className="btn-icon btn-icon-ghost"
-            style={{ width: '32px', height: '32px' }}
+            className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full border-none bg-transparent transition-colors hover:bg-mist"
           >
             <PhX size={16} color="#5B6B6E" />
           </button>
         </div>
 
         {/* Results List */}
-        <div style={{ maxHeight: '380px', overflowY: 'auto', padding: '12px 16px' }}>
+        <div className="max-h-[380px] overflow-y-auto px-4 py-3">
           {/* Quick Actions */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase', padding: '4px 8px' }}>
+          <div className="mb-4">
+            <div className="px-2 py-1 text-[11px] font-semibold uppercase text-slate">
               {language === 'bn' ? 'দ্রুত পদক্ষেপ' : 'Quick Navigation'}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginTop: '4px' }}>
+            <div className="mt-1 grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => {
                   setActiveView('queue');
                   setIsCommandPaletteOpen(false);
                 }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid #DDE5E1',
-                  backgroundColor: '#F5F3EE',
-                  color: '#0B1F22',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
+                className="flex cursor-pointer items-center gap-2 rounded-chip border border-line bg-bone px-3 py-2.5 text-left text-[13px] font-semibold text-ink transition-colors hover:bg-mist"
               >
                 <PhUsers size={16} color="#1D6B66" />
                 <span>{language === 'bn' ? 'লাইভ কিউ ড্যাশবোর্ড' : 'Open Live Queue'}</span>
@@ -170,20 +118,7 @@ export const CommandPalette: React.FC = () => {
                   setActiveView('sessions');
                   setIsCommandPaletteOpen(false);
                 }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1px solid #DDE5E1',
-                  backgroundColor: '#F5F3EE',
-                  color: '#0B1F22',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
+                className="flex cursor-pointer items-center gap-2 rounded-chip border border-line bg-bone px-3 py-2.5 text-left text-[13px] font-semibold text-ink transition-colors hover:bg-mist"
               >
                 <PhCalendarBlank size={16} color="#1D6B66" />
                 <span>{language === 'bn' ? 'নতুন সেশন / ক্যাম্প' : 'Manage Sessions'}</span>
@@ -193,8 +128,8 @@ export const CommandPalette: React.FC = () => {
 
           {/* Queue Tokens Found */}
           {filteredQueue.length > 0 && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase', padding: '4px 8px' }}>
+            <div className="mb-4">
+              <div className="px-2 py-1 text-[11px] font-semibold uppercase text-slate">
                 {language === 'bn' ? 'সিরিয়াল টোকেন' : 'Live Queue Tokens'}
               </div>
               {filteredQueue.map((item) => (
@@ -204,41 +139,22 @@ export const CommandPalette: React.FC = () => {
                     setActiveView('queue');
                     setIsCommandPaletteOpen(false);
                   }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    transition: 'background-color 0.15s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E6EEEA')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  className="flex cursor-pointer items-center justify-between rounded-pill px-3 py-2 transition-colors duration-150 hover:bg-mist"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span
-                      style={{
-                        padding: '3px 8px',
-                        backgroundColor: '#0B1F22',
-                        color: '#FFFFFF',
-                        borderRadius: '6px',
-                        fontWeight: 700,
-                        fontSize: '12px',
-                      }}
-                    >
+                  <div className="flex items-center gap-2.5">
+                    <span className="rounded-[6px] bg-ink px-2 py-[3px] text-xs font-bold text-white">
                       {item.ticketNumber}
                     </span>
                     <div>
-                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#0B1F22' }}>
+                      <div className="text-sm font-semibold text-ink">
                         {language === 'bn' ? item.patientNameBn : item.patientName}
                       </div>
-                      <div style={{ fontSize: '12px', color: '#5B6B6E' }}>
+                      <div className="text-xs text-slate">
                         {item.stationName}
                       </div>
                     </div>
                   </div>
-                  <span style={{ fontSize: '12px', color: '#1D6B66', fontWeight: 600 }}>
+                  <span className="text-xs font-semibold text-teal">
                     {item.currentStatus.replace('_', ' ')}
                   </span>
                 </div>
@@ -248,8 +164,8 @@ export const CommandPalette: React.FC = () => {
 
           {/* Patients Found */}
           {filteredPatients.length > 0 && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase', padding: '4px 8px' }}>
+            <div className="mb-4">
+              <div className="px-2 py-1 text-[11px] font-semibold uppercase text-slate">
                 {language === 'bn' ? 'রোগী তথ্য' : 'Registered Patients'}
               </div>
               {filteredPatients.map((pat) => (
@@ -259,28 +175,18 @@ export const CommandPalette: React.FC = () => {
                     setActiveView('patients');
                     setIsCommandPaletteOpen(false);
                   }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    transition: 'background-color 0.15s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E6EEEA')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  className="flex cursor-pointer items-center justify-between rounded-pill px-3 py-2 transition-colors duration-150 hover:bg-mist"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="flex items-center gap-2">
                     <PhUsers size={16} color="#1D6B66" />
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#0B1F22' }}>
+                    <span className="text-[13px] font-semibold text-ink">
                       {language === 'bn' ? pat.fullNameBn : pat.fullName}
                     </span>
-                    <span style={{ fontSize: '11px', color: '#5B6B6E' }}>
+                    <span className="text-[11px] text-slate">
                       ({pat.canonicalHealoraId})
                     </span>
                   </div>
-                  <span style={{ fontSize: '12px', color: '#5B6B6E' }}>
+                  <span className="text-xs text-slate">
                     {pat.phone}
                   </span>
                 </div>
@@ -290,8 +196,8 @@ export const CommandPalette: React.FC = () => {
 
           {/* Hubs Found */}
           {filteredHubs.length > 0 && (
-            <div style={{ marginBottom: '8px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: '#5B6B6E', textTransform: 'uppercase', padding: '4px 8px' }}>
+            <div className="mb-2">
+              <div className="px-2 py-1 text-[11px] font-semibold uppercase text-slate">
                 {language === 'bn' ? 'হাব কেন্দ্র' : 'Hubs'}
               </div>
               {filteredHubs.map((hub) => (
@@ -302,24 +208,15 @@ export const CommandPalette: React.FC = () => {
                     setActiveView('hubs');
                     setIsCommandPaletteOpen(false);
                   }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E6EEEA')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  className="flex cursor-pointer items-center justify-between rounded-pill px-3 py-2 transition-colors duration-150 hover:bg-mist"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="flex items-center gap-2">
                     <PhHospital size={16} color="#1D6B66" />
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#0B1F22' }}>
+                    <span className="text-[13px] font-semibold text-ink">
                       {language === 'bn' ? hub.nameBn : hub.name} ({hub.code})
                     </span>
                   </div>
-                  <span style={{ fontSize: '12px', color: '#5B6B6E' }}>
+                  <span className="text-xs text-slate">
                     {hub.district}
                   </span>
                 </div>

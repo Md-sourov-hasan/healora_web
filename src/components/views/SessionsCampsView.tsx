@@ -8,7 +8,7 @@ import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../context/useApp';
 import type { HubSession } from '../../types';
 
 export const SessionsCampsView: React.FC = () => {
@@ -55,29 +55,21 @@ export const SessionsCampsView: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: '1280px', margin: '0 auto' }}>
+    <div className="mx-auto max-w-7xl px-10 py-8">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div className="mb-6 flex items-start justify-between">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#1D6B66', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              {language === 'bn' ? 'সেশন ও ক্যাম্প সময়সূচি' : 'SESSION ROSTER & CAPACITY CONTROLS'}
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.04em] text-teal">
+              {language === 'bn' ? 'সেশন ও ক্যাম্প সময়সূচি' : 'SESSION ROSTER & CAPACITY CONTROLS'}
             </span>
           </div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '28px',
-              fontWeight: 600,
-              color: '#0B1F22',
-              fontFamily: 'var(--ui)',
-            }}
-          >
+          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
             {t.navSessions}
           </h1>
-          <p style={{ margin: '4px 0 0 0', color: '#5B6B6E', fontSize: '14px' }}>
+          <p className="mt-1 text-sm text-slate">
             {language === 'bn'
-              ? 'নিয়মিত ক্লিনিক দিন ও বিশেষ পল্লী স্বাস্থ্য ক্যাম্পের সক্ষমতা ও প্রস্তুতি নিশ্চিতকরণ'
+              ? 'নিয়মিত ক্লিনিক দিন ও বিশেষ পল্লী স্বাস্থ্য ক্যাম্পের সক্ষমতা ও প্রস্তুতি নিশ্চিতকরণ'
               : 'Configured clinic days and health camps with strict staffing & device prerequisite validation'}
           </p>
         </div>
@@ -92,22 +84,16 @@ export const SessionsCampsView: React.FC = () => {
       </div>
 
       {/* Sessions Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
+      <div className="grid grid-cols-2 gap-6">
         {hubSessions.map((session) => (
           <Card key={session.id} variant="card">
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div className="mb-3 flex items-start justify-between">
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <div className="mb-1 flex items-center gap-2">
                   <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      backgroundColor: session.sessionType === 'special_camp' ? '#F8EDD8' : '#CFE0D8',
-                      color: session.sessionType === 'special_camp' ? '#80540F' : '#0F3D3A',
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                      textTransform: 'uppercase',
-                    }}
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase ${
+                      session.sessionType === 'special_camp' ? 'bg-warn-bg text-warn-fg' : 'bg-sage-200 text-pine'
+                    }`}
                   >
                     {session.sessionType.replace('_', ' ')}
                   </span>
@@ -116,22 +102,22 @@ export const SessionsCampsView: React.FC = () => {
                     variant={session.status === 'in_progress' ? 'in_service' : 'upcoming'}
                   />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#0B1F22' }}>
+                <h2 className="m-0 text-lg font-semibold text-ink">
                   {language === 'bn' ? session.titleBn : session.title}
                 </h2>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '13px', color: '#5B6B6E', marginBottom: '16px' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div className="mb-4 flex items-center gap-4 text-[13px] text-slate">
+              <span className="flex items-center gap-1">
                 <PhCalendarBlank size={16} color="#1D6B66" />
                 {session.date} • {session.startTime} – {session.endTime}
               </span>
             </div>
 
             {/* Capacity bars */}
-            <div style={{ backgroundColor: '#F5F3EE', padding: '16px', borderRadius: '16px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#0B1F22', marginBottom: '6px' }}>
+            <div className="mb-4 rounded-2xl bg-bone p-4">
+              <div className="mb-1.5 flex justify-between text-[13px] text-ink">
                 <span>
                   <strong>Booked:</strong> {session.bookedCount} / {session.totalCapacity} slots
                 </span>
@@ -139,74 +125,56 @@ export const SessionsCampsView: React.FC = () => {
                   <strong>Walk-ins:</strong> {session.walkInUsed} / {session.walkInCapacity}
                 </span>
               </div>
-              <div style={{ width: '100%', height: '8px', borderRadius: '9999px', backgroundColor: '#CFE0D8', overflow: 'hidden' }}>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-sage-200">
                 <div
+                  className="h-full bg-teal"
                   style={{
                     width: `${Math.min(100, (session.bookedCount / session.totalCapacity) * 100)}%`,
-                    height: '100%',
-                    backgroundColor: '#1D6B66',
                   }}
                 />
               </div>
-              <div style={{ fontSize: '11px', color: '#5B6B6E', marginTop: '6px' }}>
+              <div className="mt-1.5 text-[11px] text-slate">
                 Overbooking Guard: Active (Hard-stop at slot limit + walk-in buffer)
               </div>
             </div>
 
             {/* Prerequisites Checklist (PRD Section 8.5) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '18px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: session.minimumStaffReady ? '#22643F' : '#9B2424' }}>
+            <div className="mb-4.5 flex flex-col gap-1.5 text-xs">
+              <div className={`flex items-center gap-1.5 ${session.minimumStaffReady ? 'text-ok-fg' : 'text-bad-fg'}`}>
                 <PhCheckCircle size={15} color={session.minimumStaffReady ? '#2F855A' : '#C53030'} />
                 <span>
                   Staffing: Lead ({session.teamLeadName}), {session.healthWorkersCount} HWs, {session.doctorsCount} Doctor assigned.
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: session.requiredEquipmentReady ? '#22643F' : '#9B2424' }}>
+              <div className={`flex items-center gap-1.5 ${session.requiredEquipmentReady ? 'text-ok-fg' : 'text-bad-fg'}`}>
                 <PhCheckCircle size={15} color={session.requiredEquipmentReady ? '#2F855A' : '#C53030'} />
                 <span>
                   Equipment: BP, Glucometer &amp; Pulse Oximeter calibration certified.
                 </span>
               </div>
               {session.overrideReason && (
-                <div style={{ color: '#80540F', backgroundColor: '#F8EDD8', padding: '4px 8px', borderRadius: '6px', fontSize: '11px' }}>
+                <div className="rounded-md bg-warn-bg px-2 py-1 text-[11px] text-warn-fg">
                   Override Note: {session.overrideReason}
                 </div>
               )}
             </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '14px', borderTop: '1px solid #DDE5E1' }}>
+            <div className="flex items-center justify-between border-t border-line pt-3.5">
               <button
                 type="button"
                 onClick={() => setSelectedSessionForDetails(session)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#1D6B66',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
+                className="cursor-pointer border-none bg-transparent p-0 text-[13px] font-semibold text-teal"
               >
                 {language === 'bn' ? 'বিস্তারিত রোস্টার দেখুন' : 'View Full Roster'}
               </button>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="flex gap-2">
                 {session.status === 'open_for_booking' && (
                   <button
                     type="button"
                     onClick={() => showToast(`Session ${session.title} opened for live check-in.`)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      backgroundColor: '#0B1F22',
-                      color: '#FFFFFF',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
+                    className="cursor-pointer rounded-lg border-none bg-ink px-3 py-1.5 text-xs font-semibold text-white"
                   >
                     Start Session
                   </button>
@@ -215,16 +183,7 @@ export const SessionsCampsView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => showToast(`Session ${session.title} marked completed.`)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '8px',
-                      backgroundColor: '#E3F1E8',
-                      color: '#22643F',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      border: '1px solid #2F855A',
-                      cursor: 'pointer',
-                    }}
+                    className="cursor-pointer rounded-lg border border-ok bg-ok-bg px-3 py-1.5 text-xs font-semibold text-ok-fg"
                   >
                     End Session
                   </button>
@@ -242,9 +201,9 @@ export const SessionsCampsView: React.FC = () => {
         title={t.newSession}
         subtitle="Validate staffing & device calibration prior to publishing"
       >
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+            <label className="mb-1.5 block text-[13px] font-semibold text-slate">
               Session / Camp Name *
             </label>
             <input
@@ -253,63 +212,40 @@ export const SessionsCampsView: React.FC = () => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Afternoon Diabetic & Hypertension Outreach"
-              style={{
-                width: '100%',
-                height: '48px',
-                borderRadius: '12px',
-                border: '1px solid #DDE5E1',
-                padding: '0 14px',
-                fontSize: '15px',
-                fontFamily: 'var(--ui)',
-              }}
+              className="h-12 w-full rounded-xl border border-line px-3.5 font-ui text-[15px]"
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 Session Type
               </label>
               <select
                 value={sessionType}
-                onChange={(e) => setSessionType(e.target.value as any)}
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '12px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                  backgroundColor: '#FFFFFF',
-                }}
+                onChange={(e) => setSessionType(e.target.value as 'standard_clinic' | 'special_camp')}
+                className="h-12 w-full rounded-xl border border-line bg-paper px-3 text-sm"
               >
                 <option value="standard_clinic">Standard Clinic Day</option>
                 <option value="special_camp">Special Outreach Camp</option>
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 Date
               </label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '12px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                }}
+                className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 Start Time
               </label>
               <input
@@ -317,18 +253,11 @@ export const SessionsCampsView: React.FC = () => {
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 placeholder="09:00 AM"
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '12px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                }}
+                className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 End Time
               </label>
               <input
@@ -336,59 +265,38 @@ export const SessionsCampsView: React.FC = () => {
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 placeholder="02:00 PM"
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '12px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                }}
+                className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 Booked Slots Limit
               </label>
               <input
                 type="number"
                 value={totalCapacity}
                 onChange={(e) => setTotalCapacity(Number(e.target.value))}
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '12px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                }}
+                className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+              <label className="mb-1.5 block text-[13px] font-semibold text-slate">
                 Walk-In Buffer Slots
               </label>
               <input
                 type="number"
                 value={walkInCapacity}
                 onChange={(e) => setWalkInCapacity(Number(e.target.value))}
-                style={{
-                  width: '100%',
-                  height: '48px',
-                  borderRadius: '12px',
-                  border: '1px solid #DDE5E1',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                }}
+                className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#5B6B6E', marginBottom: '6px' }}>
+            <label className="mb-1.5 block text-[13px] font-semibold text-slate">
               Override Reason (if staffing/equipment needs variance)
             </label>
             <input
@@ -396,18 +304,11 @@ export const SessionsCampsView: React.FC = () => {
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
               placeholder="e.g. Single-worker screening authorized under Protocol v2.4"
-              style={{
-                width: '100%',
-                height: '48px',
-                borderRadius: '12px',
-                border: '1px solid #DDE5E1',
-                padding: '0 12px',
-                fontSize: '14px',
-              }}
+              className="h-12 w-full rounded-xl border border-line px-3 text-sm"
             />
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+          <div className="mt-4 flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setIsNewSessionOpen(false)}>
               {t.cancel}
             </Button>
@@ -426,12 +327,12 @@ export const SessionsCampsView: React.FC = () => {
           title={`Session Details: ${selectedSessionForDetails.title}`}
           subtitle="Operational parameters and verified staffing roster"
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ backgroundColor: '#F5F3EE', padding: '16px', borderRadius: '14px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0B1F22', marginBottom: '6px' }}>
+          <div className="flex flex-col gap-4">
+            <div className="rounded-ctl bg-bone p-4">
+              <div className="mb-1.5 text-[13px] font-semibold text-ink">
                 Assigned Team Roster:
               </div>
-              <div style={{ fontSize: '13px', color: '#5B6B6E', lineHeight: 1.6 }}>
+              <div className="text-[13px] leading-[1.6] text-slate">
                 • <strong>Team Lead:</strong> {selectedSessionForDetails.teamLeadName}
                 <br />
                 • <strong>Health Assistants:</strong> 2 Field Health Workers checked in
@@ -440,11 +341,11 @@ export const SessionsCampsView: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ backgroundColor: '#E6EEEA', padding: '16px', borderRadius: '14px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F3D3A', marginBottom: '6px' }}>
+            <div className="rounded-ctl bg-mist p-4">
+              <div className="mb-1.5 text-[13px] font-semibold text-pine">
                 Equipment Checklist Status:
               </div>
-              <div style={{ fontSize: '13px', color: '#0F3D3A', lineHeight: 1.6 }}>
+              <div className="text-[13px] leading-[1.6] text-pine">
                 ✓ Omron HEM-7120 Digital BP Monitor (Calibrated)
                 <br />
                 ✓ Accu-Chek Instant Glucometer (Control solution verified)
@@ -453,7 +354,7 @@ export const SessionsCampsView: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <div className="mt-4 flex justify-end">
               <Button variant="secondary" onClick={() => setSelectedSessionForDetails(null)}>
                 Close
               </Button>

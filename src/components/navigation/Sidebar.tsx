@@ -32,84 +32,20 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside
-      style={{
-        width: '248px',
-        backgroundColor: '#FFFFFF',
-        borderRight: '1px solid #DDE5E1',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        height: '100vh',
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-      }}
-    >
+    <aside className="sticky top-0 z-50 flex h-screen w-[248px] shrink-0 flex-col border-r border-line bg-paper">
       {/* Brand Header */}
-      <div
-        style={{
-          padding: '24px 20px 16px 20px',
-          borderBottom: '1px solid #DDE5E1',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-        }}
-      >
-        <div
-          style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '12px',
-            backgroundColor: '#1D6B66',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#FFFFFF',
-            boxShadow: '0 2px 6px rgba(29, 107, 102, 0.25)',
-          }}
-        >
+      <div className="flex items-center gap-3 border-b border-line px-5 pb-4 pt-6">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-teal text-white shadow-[0_2px_6px_rgba(29,107,102,0.25)]">
           <PhFirstAidKit size={22} color="#FFFFFF" />
         </div>
         <div>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: '18px',
-              fontWeight: 700,
-              letterSpacing: '-0.02em',
-              color: '#0B1F22',
-              fontFamily: 'var(--ui)',
-            }}
-          >
-            Healora
-          </h1>
-          <p
-            style={{
-              margin: 0,
-              fontSize: '11px',
-              fontWeight: 600,
-              color: '#5B6B6E',
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-            }}
-          >
-            Hub Platform
-          </p>
+          <h1 className="m-0 text-lg font-bold tracking-tight text-ink">Healora</h1>
+          <p className="m-0 text-[11px] font-semibold uppercase tracking-wider text-slate">Hub Platform</p>
         </div>
       </div>
 
       {/* Navigation Links */}
-      <nav
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '16px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
-        }}
-      >
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
         {navItems.map((item) => {
           const isActive = activeView === item.key;
           const Icon = item.icon;
@@ -119,84 +55,31 @@ export const Sidebar: React.FC = () => {
               key={item.key}
               type="button"
               onClick={() => setActiveView(item.key)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 14px',
-                borderRadius: '12px',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'var(--ui)',
-                fontSize: '14px',
-                fontWeight: isActive ? 700 : 500, // Design System 7.8: active tab = label at 700
-                color: isActive ? '#0B1F22' : '#5B6B6E',
-                backgroundColor: isActive ? '#E6EEEA' : 'transparent', // Mist fill
-                textAlign: 'left',
-                transition: 'background-color 0.15s ease',
-                position: 'relative',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) e.currentTarget.style.backgroundColor = '#F5F3EE';
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-              }}
+              className={`relative flex cursor-pointer items-center justify-between rounded-xl border-none px-3.5 py-2.5 text-left text-sm transition-colors duration-150 ${
+                // Design System 7.8: active tab = label at 700 on Mist fill
+                isActive ? 'bg-mist font-bold text-ink' : 'bg-transparent font-medium text-slate hover:bg-bone'
+              }`}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span
-                  style={{
-                    color: isActive ? '#1D6B66' : '#5B6B6E',
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
+              <div className="flex items-center gap-3">
+                <span className={`flex items-center ${isActive ? 'text-teal' : 'text-slate'}`}>
                   <Icon size={18} />
                 </span>
                 <span>{item.label}</span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div className="flex items-center gap-1.5">
                 {item.badge && (
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      backgroundColor: '#C0633F',
-                      color: '#FFFFFF',
-                      padding: '2px 6px',
-                      borderRadius: '9999px',
-                      textTransform: 'uppercase',
-                    }}
-                  >
+                  <span className="rounded-full bg-clay px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
                     {item.badge}
                   </span>
                 )}
                 {item.alertCount && (
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      backgroundColor: '#FBE4E4',
-                      color: '#9B2424',
-                      padding: '1px 6px',
-                      borderRadius: '9999px',
-                    }}
-                  >
+                  <span className="rounded-full bg-bad-bg px-1.5 py-px text-[11px] font-bold text-bad-fg">
                     {item.alertCount}
                   </span>
                 )}
                 {/* 4px Teal active dot (Design System Ch 7.8) */}
-                {isActive && (
-                  <span
-                    style={{
-                      width: '4px',
-                      height: '4px',
-                      borderRadius: '9999px',
-                      backgroundColor: '#1D6B66',
-                    }}
-                  />
-                )}
+                {isActive && <span className="size-1 rounded-full bg-teal" />}
               </div>
             </button>
           );
@@ -204,55 +87,25 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       {/* Assistant & Command Launcher (Design System Ch 12: Assistant as a persistent mist button and Cmd+K) */}
-      <div style={{ padding: '16px', borderTop: '1px solid #DDE5E1' }}>
+      <div className="border-t border-line p-4">
         <button
           type="button"
           onClick={() => setIsCommandPaletteOpen(true)}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 14px',
-            borderRadius: '12px',
-            backgroundColor: '#E6EEEA', // Mist
-            border: '1px solid #CFE0D8',
-            color: '#0F3D3A',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'background-color 0.15s ease',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#CFE0D8')}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#E6EEEA')}
+          className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-sage-200 bg-mist px-3.5 py-2.5 text-[13px] font-semibold text-pine transition-colors duration-150 hover:bg-sage-200"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="flex items-center gap-2">
             <PhWaveform size={16} color="#1D6B66" />
             <span>Voice &amp; Search</span>
           </div>
-          <kbd
-            style={{
-              fontSize: '11px',
-              padding: '2px 6px',
-              backgroundColor: '#FFFFFF',
-              borderRadius: '4px',
-              border: '1px solid #DDE5E1',
-              color: '#5B6B6E',
-            }}
-          >
-            ⌘K
-          </kbd>
+          <kbd className="rounded border border-line bg-paper px-1.5 py-0.5 text-[11px] text-slate">⌘K</kbd>
         </button>
 
         {/* Current Active Role Indicator */}
-        <div style={{ marginTop: '12px', fontSize: '11px', color: '#5B6B6E' }}>
+        <div className="mt-3 text-[11px] text-slate">
           <span>Role Scope: </span>
-          <span style={{ fontWeight: 600, color: '#0B1F22' }}>
-            {activeRole.replace(/_/g, ' ').toUpperCase()}
-          </span>
+          <span className="font-semibold uppercase text-ink">{activeRole.replace(/_/g, ' ')}</span>
         </div>
       </div>
     </aside>
   );
 };
-
