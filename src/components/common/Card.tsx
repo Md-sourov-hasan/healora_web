@@ -1,4 +1,5 @@
 import React from 'react';
+import { Card as ShadcnCard } from '../ui/card';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'card' | 'tint' | 'flat' | 'hero';
@@ -20,7 +21,7 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   ...rest
 }) => (
-  <div
+  <ShadcnCard
     className={[
       'box-border',
       variants[variant],
@@ -33,5 +34,5 @@ export const Card: React.FC<CardProps> = ({
     {...rest}
   >
     {children}
-  </div>
+  </ShadcnCard>
 );
