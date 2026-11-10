@@ -2,16 +2,23 @@ export interface TranslationDict {
   brandTitle: string;
   brandSubtitle: string;
   navOverview: string;
+  navDashboard: string;
   navHubs: string;
+  navRegions: string;
   navSessions: string;
   navAppointments: string;
   navQueue: string;
   navPatients: string;
   navTeam: string;
+  navStations: string;
   navEquipment: string;
-  navReports: string;
+  navEncounters: string;
   navExceptions: string;
+  navReports: string;
+  navNotifications: string;
+  navSettings: string;
   navAudit: string;
+  navAuditLogs: string;
   todaySession: string;
   activeHubs: string;
   appointmentsToday: string;
@@ -71,17 +78,24 @@ export const translations: Record<'en' | 'bn', TranslationDict> = {
   en: {
     brandTitle: 'Healora Hub Ops',
     brandSubtitle: 'Area-based Physical Hub Operations & Care Coordination',
-    navOverview: 'Overview',
-    navHubs: 'Hubs',
-    navSessions: 'Sessions & Camps',
-    navAppointments: 'Appointments',
+    navOverview: 'Overview Dashboard',
+    navDashboard: 'Overview Dashboard',
+    navHubs: 'Hub Directory & Management',
+    navRegions: 'Regions & Catchment Areas',
+    navSessions: 'Sessions & Health Camps',
+    navAppointments: 'Appointments & Booking',
     navQueue: 'Live Queue',
-    navPatients: 'Patients (Operational)',
-    navTeam: 'Team & Rosters',
-    navEquipment: 'Stations & Devices',
-    navReports: 'Operations Reports',
-    navExceptions: 'Sync & Exceptions',
-    navAudit: 'Audit & Compliance',
+    navPatients: 'Operational Patient Lookup',
+    navTeam: 'Staff & Rosters',
+    navStations: 'Stations',
+    navEquipment: 'Equipment',
+    navEncounters: 'Encounter Monitoring',
+    navExceptions: 'Exceptions & Escalations',
+    navReports: 'Reports & Analytics',
+    navNotifications: 'Notifications & Activity',
+    navSettings: 'Settings & Permissions',
+    navAudit: 'Audit Logs',
+    navAuditLogs: 'Audit Logs',
     todaySession: "Today's Hub Operations",
     activeHubs: 'Active Hubs',
     appointmentsToday: 'Booked Today',
@@ -139,17 +153,24 @@ export const translations: Record<'en' | 'bn', TranslationDict> = {
   bn: {
     brandTitle: 'হিলোরা হাব ম্যানেজমেন্ট',
     brandSubtitle: 'শাখাভিত্তিক স্বাস্থ্যসেবা কেন্দ্র পরিচালনা ও স্থানীয় কেয়ার সমন্বয়',
-    navOverview: 'সারসংক্ষেপ',
-    navHubs: 'শাখা কেন্দ্রসমূহ',
+    navOverview: 'সারসংক্ষেপ ড্যাশবোর্ড',
+    navDashboard: 'সারসংক্ষেপ ড্যাশবোর্ড',
+    navHubs: 'হাব ডিরেক্টরি ও ব্যবস্থাপনা',
+    navRegions: 'অঞ্চল ও সেবা পরিধি (ক্যাচমেন্ট)',
     navSessions: 'সেশন ও হেলথ ক্যাম্প',
-    navAppointments: 'অ্যাপয়েন্টমেন্ট',
+    navAppointments: 'অ্যাপয়েন্টমেন্ট ও বুকিং',
     navQueue: 'লাইভ সিরিয়াল / কিউ',
-    navPatients: 'রোগী তথ্য (অপারেশনাল)',
+    navPatients: 'রোগী অনুসন্ধান (অপারেশনাল)',
     navTeam: 'টিম ও ডিউটি রোস্টার',
-    navEquipment: 'স্টেশন ও চিকিৎসা সরঞ্জাম',
-    navReports: 'কার্যক্রম রিপোর্ট',
-    navExceptions: 'সিঙ্ক ও সমস্যা মনিটর',
-    navAudit: 'অডিট ও আইনগত সম্মতি',
+    navStations: 'স্টেশনসমূহ',
+    navEquipment: 'চিকিৎসা সরঞ্জাম',
+    navEncounters: 'এনকাউন্টার মনিটরিং',
+    navExceptions: 'সমস্যা ও জরুরি পর্যালোচনা',
+    navReports: 'রিপোর্ট ও বিশ্লেষণ',
+    navNotifications: 'নোটিফিকেশন ও কার্যক্রম',
+    navSettings: 'সেটিংস ও অনুমতি',
+    navAudit: 'অডিট লগ',
+    navAuditLogs: 'অডিট লগ',
     todaySession: 'আজকের হাব কার্যক্রম',
     activeHubs: 'সক্রিয় হাব',
     appointmentsToday: 'আজকের বুকিং',

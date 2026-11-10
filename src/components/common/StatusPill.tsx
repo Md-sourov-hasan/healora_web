@@ -5,6 +5,7 @@ export type StatusVariant =
   | 'completed'
   | 'awaiting'
   | 'declined'
+  | 'cancelled'
   | 'upcoming'
   | 'draft'
   | 'teal'
@@ -32,6 +33,7 @@ const styles: Record<StatusVariant, { pill: string; dot: string }> = {
   busy: { pill: 'bg-warn-bg text-warn-fg', dot: 'bg-warn' },
   calibration_due: { pill: 'bg-warn-bg text-warn-fg', dot: 'bg-warn' },
   declined: { pill: 'bg-bad-bg text-bad-fg', dot: 'bg-bad' },
+  cancelled: { pill: 'bg-bad-bg text-bad-fg', dot: 'bg-bad' },
   maintenance: { pill: 'bg-bad-bg text-bad-fg', dot: 'bg-bad' },
   paused: { pill: 'bg-bad-bg text-bad-fg', dot: 'bg-bad' },
   upcoming: { pill: 'bg-mist text-pine', dot: 'bg-teal' },

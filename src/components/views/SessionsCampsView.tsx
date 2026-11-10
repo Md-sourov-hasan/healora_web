@@ -12,9 +12,11 @@ import { useApp } from '../../context/useApp';
 import type { HubSession } from '../../types';
 
 export const SessionsCampsView: React.FC = () => {
-  const { t, language, sessions, selectedHubId, createSession, showToast } = useApp();
+  const { t, language, sessions, selectedHubId, createSession, cancelSession, showToast } = useApp();
   const [isNewSessionOpen, setIsNewSessionOpen] = useState(false);
   const [selectedSessionForDetails, setSelectedSessionForDetails] = useState<HubSession | null>(null);
+  const [cancellingSessionId, setCancellingSessionId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   // Form states
   const [title, setTitle] = useState('');
@@ -186,6 +188,15 @@ export const SessionsCampsView: React.FC = () => {
                     className="cursor-pointer rounded-lg border border-ok bg-ok-bg px-3 py-1.5 text-xs font-semibold text-ok-fg"
                   >
                     End Session
+                  </button>
+                )}
+                {session.status !== 'completed' && session.status !== 'cancelled' && (
+                  <button
+                    type="button"
+                    onClick={() => setCancellingSessionId(session.id)}
+                    className="cursor-pointer rounded-lg border border-bad/30 bg-paper px-2.5 py-1.5 text-xs font-semibold text-bad hover:bg-bad-bg"
+                  >
+                    Cancel
                   </button>
                 )}
               </div>
@@ -362,6 +373,46 @@ export const SessionsCampsView: React.FC = () => {
           </div>
         </ModalSheet>
       )}
+
+      {/* Cancellation Modal (PRD Section 8.5) */}
+      <ModalSheet
+        isOpen={!!cancellingSessionId}
+        onClose={() => setCancellingSessionId(null)}
+        title="Cancel Hub Service Session"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (cancellingSessionId && cancelReason.trim()) {
+              cancelSession(cancellingSessionId, cancelReason);
+              setCancellingSessionId(null);
+              setCancelReason('');
+            }
+          }}
+          className="space-y-4"
+        >
+          <div className="rounded-xl bg-bad-bg p-3.5 text-xs text-bad-fg">
+            <strong>Session Cancellation Rule (PRD 8.5 &amp; 12.2):</strong> Cancelling this session will block any new bookings and trigger automated notifications to booked patients. Historical visits and already-completed observations are safely preserved.
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate">Cancellation Reason (Mandatory)</label>
+            <textarea
+              rows={3}
+              required
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Unforeseen electrical outage / Staff medical emergency. Patients redirected to next clinic session."
+              className="w-full rounded-xl border border-line p-3 text-sm"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3">
+            <Button variant="secondary" onClick={() => setCancellingSessionId(null)}>Cancel</Button>
+            <Button variant="primary" type="submit" className="bg-bad! hover:bg-bad-fg!">Confirm Cancellation</Button>
+          </div>
+        </form>
+      </ModalSheet>
     </div>
   );
 };

@@ -1,3 +1,21 @@
+export type AppRoute =
+  | '/dashboard'
+  | '/hubs'
+  | '/regions'
+  | '/sessions'
+  | '/appointments'
+  | '/queue'
+  | '/patients'
+  | '/team'
+  | '/stations'
+  | '/equipment'
+  | '/encounters'
+  | '/exceptions'
+  | '/reports'
+  | '/notifications'
+  | '/settings'
+  | '/audit-logs';
+
 export type Language = 'en' | 'bn';
 
 export type UserRole =
@@ -171,6 +189,7 @@ export interface HubStation {
   currentStaffName: string;
   currentTicketNumber?: string;
   completedTodayCount: number;
+  supportedServices?: string[];
 }
 
 export type EquipmentCategory =
@@ -202,6 +221,7 @@ export interface HubEquipment {
   nextCalibrationDue: string;
   batteryPercent: number;
   notes?: string;
+  supportedObservations?: string[];
 }
 
 export interface StaffMember {
@@ -261,6 +281,8 @@ export interface Encounter {
   lastSyncAttempt?: string;
   observations: EncounterObservation[];
   dispositionNotes?: string;
+  doctorReviewStatus?: 'not_required' | 'pending' | 'reviewed' | 'remeasurement_requested';
+  requiredObservations?: string[];
 }
 
 export interface AuditEvent {
@@ -269,9 +291,76 @@ export interface AuditEvent {
   actorName: string;
   actorRole: string;
   action: string;
-  entityType: 'Hub' | 'Session' | 'Appointment' | 'Queue' | 'Staff' | 'Equipment' | 'Encounter' | 'Security' | 'Patient';
+  entityType: 'Hub' | 'Session' | 'Appointment' | 'Queue' | 'Staff' | 'Equipment' | 'Encounter' | 'Security' | 'Patient' | 'Region' | 'Catchment' | 'Notification';
   entityId: string;
   hubName: string;
   details: string;
   outcome: 'success' | 'flagged' | 'denied';
+}
+
+export interface Region {
+  id: string;
+  code: string;
+  name: string;
+  nameBn: string;
+  division: string;
+  regionalManagerName: string;
+  regionalManagerPhone: string;
+  totalHubsCount: number;
+  activeHubsCount: number;
+  catchmentPopulation: number;
+  districts: string[];
+  catchmentUnions: string[];
+  status: 'active' | 'expansion_planned';
+}
+
+export interface CatchmentArea {
+  id: string;
+  regionId: string;
+  hubId: string;
+  hubName: string;
+  name: string;
+  nameBn: string;
+  upazila: string;
+  unions: string[];
+  estimatedPopulation: number;
+  coverageRadiusKm: number;
+  basis: 'patient_choice' | 'operations_assignment' | 'campaign_camp' | 'field_referral' | 'assisted_walkin';
+  outOfCatchmentPolicy: 'allowed_with_capacity' | 'restricted' | 'referral_only';
+}
+
+export interface AppNotification {
+  id: string;
+  timestamp: string;
+  category: 'appointment' | 'session' | 'queue' | 'sync' | 'equipment' | 'clinical_alert' | 'escalation';
+  title: string;
+  titleBn: string;
+  message: string;
+  messageBn: string;
+  channel: 'sms' | 'push_app' | 'internal_system';
+  recipientRoleOrPhone: string;
+  status: 'delivered' | 'sent' | 'pending' | 'failed';
+  hubId?: string;
+  hubName?: string;
+  priority: 'normal' | 'high' | 'urgent';
+  deepLinkPath?: string;
+  acknowledged: boolean;
+}
+
+export interface OperationalException {
+  id: string;
+  code: string;
+  title: string;
+  titleBn: string;
+  category: 'sync_error' | 'missing_measurement' | 'unassigned_encounter' | 'wait_time_breach' | 'equipment_fault' | 'clinical_escalation';
+  severity: 'critical' | 'warning' | 'info';
+  hubId: string;
+  hubName: string;
+  sessionId?: string;
+  encounterId?: string;
+  patientName?: string;
+  createdAt: string;
+  status: 'active' | 'investigating' | 'resolved';
+  details: string;
+  resolutionActionText?: string;
 }

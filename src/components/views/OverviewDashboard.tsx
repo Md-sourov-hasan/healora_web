@@ -29,7 +29,7 @@ export const OverviewDashboard: React.FC = () => {
     queue,
     equipment,
     encounters,
-    setActiveView,
+    navigate,
     registerWalkIn,
     createSession,
   } = useApp();
@@ -177,7 +177,7 @@ export const OverviewDashboard: React.FC = () => {
 
       {/* Operational Metrics 4-up Grid */}
       <div className="mb-8 grid grid-cols-4 gap-4.5">
-        <Card variant="card" clickable onClick={() => setActiveView('appointments')}>
+        <Card variant="card" clickable onClick={() => navigate('/appointments')}>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[13px] font-semibold text-slate">{t.appointmentsToday}</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-chip bg-sage-200 text-pine">
@@ -192,7 +192,7 @@ export const OverviewDashboard: React.FC = () => {
           </div>
         </Card>
 
-        <Card variant="card" clickable onClick={() => setActiveView('queue')}>
+        <Card variant="card" clickable onClick={() => navigate('/queue')}>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[13px] font-semibold text-slate">{t.waiting} / {t.inService}</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-chip bg-mist text-teal">
@@ -207,13 +207,12 @@ export const OverviewDashboard: React.FC = () => {
           </div>
         </Card>
 
-        <Card variant="card" clickable onClick={() => setActiveView('exceptions')}>
+        <Card variant="card" clickable onClick={() => navigate('/exceptions')}>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[13px] font-semibold text-slate">{t.syncPending}</span>
             <div
-              className={`flex h-9 w-9 items-center justify-center rounded-chip ${
-                pendingSyncCount > 0 ? 'bg-warn-bg text-warn-fg' : 'bg-ok-bg text-ok-fg'
-              }`}
+              className={`flex h-9 w-9 items-center justify-center rounded-chip ${pendingSyncCount > 0 ? 'bg-warn-bg text-warn-fg' : 'bg-ok-bg text-ok-fg'
+                }`}
             >
               <PhArrowsClockwise size={18} />
             </div>
@@ -230,7 +229,7 @@ export const OverviewDashboard: React.FC = () => {
           </div>
         </Card>
 
-        <Card variant="card" clickable onClick={() => setActiveView('equipment')}>
+        <Card variant="card" clickable onClick={() => navigate('/equipment')}>
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[13px] font-semibold text-slate">{t.equipmentReady}</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-chip bg-sage-200 text-pine">
@@ -259,7 +258,7 @@ export const OverviewDashboard: React.FC = () => {
                 {t.leastPrivilegeNote}
               </p>
             </div>
-            <Button variant="text" onClick={() => setActiveView('queue')}>
+            <Button variant="text" onClick={() => navigate('/queue')}>
               {language === 'bn' ? 'পূর্ণাঙ্গ কিউ বোর্ড দেখুন' : 'Open Full Board'}
             </Button>
           </div>
@@ -291,10 +290,10 @@ export const OverviewDashboard: React.FC = () => {
                       item.currentStatus === 'in_service'
                         ? 'in_service'
                         : item.currentStatus === 'completed'
-                        ? 'completed'
-                        : item.currentStatus === 'awaiting_review'
-                        ? 'awaiting'
-                        : 'upcoming'
+                          ? 'completed'
+                          : item.currentStatus === 'awaiting_review'
+                            ? 'awaiting'
+                            : 'upcoming'
                     }
                   />
                   <span className="tabular-nums text-xs text-slate">
@@ -317,7 +316,7 @@ export const OverviewDashboard: React.FC = () => {
                 {language === 'bn' ? 'সক্ষমতা ও শর্ত পর্যালোচনা' : 'Capacity, roster & equipment checklist'}
               </p>
             </div>
-            <Button variant="text" onClick={() => setActiveView('sessions')}>
+            <Button variant="text" onClick={() => navigate('/sessions')}>
               {language === 'bn' ? 'সকল সেশন' : 'Manage All'}
             </Button>
           </div>

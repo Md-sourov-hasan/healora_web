@@ -21,12 +21,15 @@ export const TopHeader: React.FC = () => {
     selectedHubId,
     setSelectedHubId,
     sessions,
+    notifications,
+    navigate,
     setIsCommandPaletteOpen,
     showToast,
   } = useApp();
 
   const currentHub = hubs.find((h) => h.id === selectedHubId) || hubs[0];
   const activeSession = sessions.find((s) => s.hubId === selectedHubId && s.status === 'in_progress');
+  const unreadNotifsCount = notifications.filter((n) => !n.acknowledged).length;
 
   const roleOptions: { value: UserRole; label: string }[] = [
     { value: 'hub_manager', label: 'Hub Manager (Kamrul H.)' },
@@ -141,14 +144,16 @@ export const TopHeader: React.FC = () => {
         {/* Notification Bell with Clay Badge (Design System Ch 7.8: notification badge is clay, 16px) */}
         <button
           type="button"
-          onClick={() => showToast('2 unassigned encounters require staff attention.')}
+          onClick={() => navigate('/notifications')}
           className="relative inline-flex size-11 cursor-pointer items-center justify-center rounded-full border-none bg-transparent hover:bg-mist"
-          title="Notifications"
+          title="Notifications & Activity"
         >
           <PhBell size={20} color="#0B1F22" />
-          <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-clay text-[10px] font-bold text-white shadow-[0_1px_3px_rgba(192,99,63,0.4)]">
-            2
-          </span>
+          {unreadNotifsCount > 0 && (
+            <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-clay text-[10px] font-bold text-white shadow-[0_1px_3px_rgba(192,99,63,0.4)]">
+              {unreadNotifsCount}
+            </span>
+          )}
         </button>
 
         {/* User Avatar */}

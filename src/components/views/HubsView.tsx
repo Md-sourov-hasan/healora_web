@@ -13,8 +13,22 @@ import { useApp } from '../../context/useApp';
 import type { Hub } from '../../types';
 
 export const HubsView: React.FC = () => {
-  const { t, language, hubs, selectedHubId, setSelectedHubId, showToast } = useApp();
+  const { t, language, hubs, selectedHubId, setSelectedHubId, addHub, showToast } = useApp();
   const [selectedHubForEdit, setSelectedHubForEdit] = useState<Hub | null>(null);
+  const [isAddHubOpen, setIsAddHubOpen] = useState(false);
+
+  // Add Hub form states
+  const [hubName, setHubName] = useState('');
+  const [hubCode, setHubCode] = useState('');
+  const [hubDivision, setHubDivision] = useState('Dhaka');
+  const [hubDistrict, setHubDistrict] = useState('Dhaka');
+  const [hubUpazila, setHubUpazila] = useState('');
+  const [hubUnion, setHubUnion] = useState('');
+  const [hubAddress, setHubAddress] = useState('');
+  const [hubPhone, setHubPhone] = useState('');
+  const [hubReferral, setHubReferral] = useState('');
+  const [hubEmergencyPhone, setHubEmergencyPhone] = useState('');
+  const [hubCapacity, setHubCapacity] = useState(60);
 
   return (
     <div className="mx-auto max-w-7xl px-10 py-8">
@@ -38,7 +52,7 @@ export const HubsView: React.FC = () => {
 
         <Button
           variant="primary"
-          onClick={() => showToast('New hub onboarding workflow initiated with Regional Operations.')}
+          onClick={() => setIsAddHubOpen(true)}
           icon={<PhPlus size={16} />}
         >
           {language === 'bn' ? 'নতুন হাব যুক্ত করুন' : 'Add New Hub'}
@@ -220,6 +234,178 @@ export const HubsView: React.FC = () => {
           </div>
         </ModalSheet>
       )}
+
+      {/* Add New Hub Modal (PRD Section 8.3 & 9.1) */}
+      <ModalSheet
+        isOpen={isAddHubOpen}
+        onClose={() => setIsAddHubOpen(false)}
+        title="Establish Physical Health Hub"
+        subtitle="Configure physical service location, administrative area & emergency referral liaison"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!hubName.trim()) return;
+            addHub({
+              code: hubCode || `HUB-${Math.floor(10 + Math.random() * 90)}`,
+              name: hubName,
+              nameBn: hubName,
+              division: hubDivision,
+              district: hubDistrict,
+              upazila: hubUpazila || 'Upazila Sadar',
+              unionName: hubUnion || 'Central Ward',
+              address: hubAddress || 'Address pending verification',
+              addressBn: hubAddress || 'ঠিকানা যাচাইকরণ প্রক্রিয়াধীন',
+              phone: hubPhone || '+880 1711 000000',
+              emergencyReferralFacility: hubReferral || 'District Sadar Hospital / Medical College',
+              emergencyPhone: hubEmergencyPhone || '+880 1711 999999',
+              capacityPerDay: Number(hubCapacity),
+              status: 'active',
+            });
+            setIsAddHubOpen(false);
+            setHubName('');
+            setHubCode('');
+            setHubAddress('');
+          }}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Hub Name *</label>
+              <input
+                type="text"
+                required
+                value={hubName}
+                onChange={(e) => setHubName(e.target.value)}
+                placeholder="e.g. Gazipur Central Hub"
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Hub Code</label>
+              <input
+                type="text"
+                value={hubCode}
+                onChange={(e) => setHubCode(e.target.value)}
+                placeholder="e.g. GAZ-01"
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Division</label>
+              <select
+                value={hubDivision}
+                onChange={(e) => setHubDivision(e.target.value)}
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              >
+                <option value="Dhaka">Dhaka</option>
+                <option value="Chittagong">Chittagong</option>
+                <option value="Sylhet">Sylhet</option>
+                <option value="Rajshahi">Rajshahi</option>
+                <option value="Barisal">Barisal</option>
+                <option value="Khulna">Khulna</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">District</label>
+              <input
+                type="text"
+                value={hubDistrict}
+                onChange={(e) => setHubDistrict(e.target.value)}
+                placeholder="e.g. Gazipur"
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Upazila</label>
+              <input
+                type="text"
+                value={hubUpazila}
+                onChange={(e) => setHubUpazila(e.target.value)}
+                placeholder="e.g. Gazipur Sadar"
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Union / Ward</label>
+              <input
+                type="text"
+                value={hubUnion}
+                onChange={(e) => setHubUnion(e.target.value)}
+                placeholder="e.g. Ward 12, Joydebpur"
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate">Physical Address &amp; Directions</label>
+            <input
+              type="text"
+              value={hubAddress}
+              onChange={(e) => setHubAddress(e.target.value)}
+              placeholder="e.g. Holding 45, Joydebpur Bazar Road, Gazipur 1700"
+              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Hub Contact Phone</label>
+              <input
+                type="text"
+                value={hubPhone}
+                onChange={(e) => setHubPhone(e.target.value)}
+                placeholder="+880 1711..."
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Daily Patient Capacity</label>
+              <input
+                type="number"
+                value={hubCapacity}
+                onChange={(e) => setHubCapacity(Number(e.target.value))}
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Emergency Referral Hospital</label>
+              <input
+                type="text"
+                value={hubReferral}
+                onChange={(e) => setHubReferral(e.target.value)}
+                placeholder="e.g. Shaheed Tajuddin Ahmad Medical College Hospital"
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Emergency Liaison Phone</label>
+              <input
+                type="text"
+                value={hubEmergencyPhone}
+                onChange={(e) => setHubEmergencyPhone(e.target.value)}
+                placeholder="+880 1711..."
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3">
+            <Button variant="secondary" onClick={() => setIsAddHubOpen(false)}>Cancel</Button>
+            <Button variant="primary" type="submit">Establish Physical Hub</Button>
+          </div>
+        </form>
+      </ModalSheet>
     </div>
   );
 };

@@ -5,8 +5,20 @@ import {
   PhHospital,
   PhCalendarBlank,
   PhX,
+  PhHouse,
+  PhGlobe,
+  PhDesktop,
+  PhGauge,
+  PhActivity,
+  PhBell,
+  PhSlidersHorizontal,
+  PhShieldCheck,
+  PhChartBar,
+  PhClipboardText,
+  PhUserCircle,
 } from '../icons/PhosphorIcons';
 import { useApp } from '../../context/AppContext';
+import type { AppRoute } from '../../types';
 
 export const CommandPalette: React.FC = () => {
   const {
@@ -15,9 +27,10 @@ export const CommandPalette: React.FC = () => {
     queue,
     patients,
     hubs,
-    setActiveView,
+    navigate,
     setSelectedHubId,
     language,
+    t,
   } = useApp();
 
   const [query, setQuery] = useState('');
@@ -37,6 +50,34 @@ export const CommandPalette: React.FC = () => {
   }, [isCommandPaletteOpen, setIsCommandPaletteOpen]);
 
   if (!isCommandPaletteOpen) return null;
+
+  const allModules: { path: AppRoute; label: string; icon: React.ComponentType<any>; tags: string }[] = [
+    { path: '/dashboard', label: t.navDashboard, icon: PhHouse, tags: 'overview home metrics kpi' },
+    { path: '/queue', label: t.navQueue, icon: PhUsers, tags: 'live waiting called tickets dispatch' },
+    { path: '/appointments', label: t.navAppointments, icon: PhClipboardText, tags: 'booking checkin intake schedule' },
+    { path: '/sessions', label: t.navSessions, icon: PhCalendarBlank, tags: 'camps clinic days capacity' },
+    { path: '/encounters', label: t.navEncounters, icon: PhActivity, tags: 'monitoring clinical measurements vitals' },
+    { path: '/exceptions', label: t.navExceptions, icon: PhX, tags: 'escalations alerts sync delay emergency' },
+    { path: '/hubs', label: t.navHubs, icon: PhHospital, tags: 'directory physical centers locations' },
+    { path: '/regions', label: t.navRegions, icon: PhGlobe, tags: 'catchment upazila union division geographic' },
+    { path: '/stations', label: t.navStations, icon: PhDesktop, tags: 'desks reception vitals room counseling' },
+    { path: '/equipment', label: t.navEquipment, icon: PhGauge, tags: 'devices calibration biomedical bp monitor ecg' },
+    { path: '/patients', label: t.navPatients, icon: PhUserCircle, tags: 'lookup registry identity verification' },
+    { path: '/team', label: t.navTeam, icon: PhUsers, tags: 'staff rosters bmdc licenses doctors health workers' },
+    { path: '/reports', label: t.navReports, icon: PhChartBar, tags: 'analytics export performance sla' },
+    { path: '/notifications', label: t.navNotifications, icon: PhBell, tags: 'activity sms push dispatches' },
+    { path: '/settings', label: t.navSettings, icon: PhSlidersHorizontal, tags: 'permissions rbac pdpa 2026 dghs compliance' },
+    { path: '/audit-logs', label: t.navAuditLogs, icon: PhShieldCheck, tags: 'immutable security ledger activity' },
+  ];
+
+  const matchedModules = query.trim()
+    ? allModules.filter(
+        (m) =>
+          m.label.toLowerCase().includes(query.toLowerCase()) ||
+          m.tags.toLowerCase().includes(query.toLowerCase()) ||
+          m.path.toLowerCase().includes(query.toLowerCase())
+      )
+    : allModules;
 
   const filteredQueue = queue.filter(
     (q) =>
@@ -61,11 +102,11 @@ export const CommandPalette: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-start justify-center bg-ink/45 pt-[100px] backdrop-blur-xs"
+      className="fixed inset-0 z-[1000] flex items-start justify-center bg-ink/45 pt-[90px] backdrop-blur-xs"
       onClick={() => setIsCommandPaletteOpen(false)}
     >
       <div
-        className="flex w-[580px] max-w-[92%] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-float"
+        className="flex w-[620px] max-w-[94%] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-float"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Bar */}
@@ -78,8 +119,8 @@ export const CommandPalette: React.FC = () => {
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
               language === 'bn'
-                ? 'রোগীর নাম, সিরিয়াল টোকেন বা হাব দিয়ে খুঁজুন...'
-                : 'Search patients, tokens (e.g. A-101), hubs, or actions...'
+                ? 'মডিউল, রোগী, সিরিয়াল টোকেন বা হাব দিয়ে খুঁজুন...'
+                : 'Search any route (e.g. /regions, /stations), token, patient, or hub...'
             }
             className="flex-1 border-none bg-transparent font-ui text-base text-ink outline-none placeholder:text-slate/70"
           />
@@ -93,36 +134,33 @@ export const CommandPalette: React.FC = () => {
         </div>
 
         {/* Results List */}
-        <div className="max-h-[380px] overflow-y-auto px-4 py-3">
-          {/* Quick Actions */}
+        <div className="max-h-[440px] overflow-y-auto px-4 py-3">
+          {/* Quick Route Navigation */}
           <div className="mb-4">
             <div className="px-2 py-1 text-[11px] font-semibold uppercase text-slate">
-              {language === 'bn' ? 'দ্রুত পদক্ষেপ' : 'Quick Navigation'}
+              {language === 'bn' ? 'সরাসরি পেজ নেভিগেশন' : 'Modules & Direct Routes'}
             </div>
             <div className="mt-1 grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveView('queue');
-                  setIsCommandPaletteOpen(false);
-                }}
-                className="flex cursor-pointer items-center gap-2 rounded-chip border border-line bg-bone px-3 py-2.5 text-left text-[13px] font-semibold text-ink transition-colors hover:bg-mist"
-              >
-                <PhUsers size={16} color="#1D6B66" />
-                <span>{language === 'bn' ? 'লাইভ কিউ ড্যাশবোর্ড' : 'Open Live Queue'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveView('sessions');
-                  setIsCommandPaletteOpen(false);
-                }}
-                className="flex cursor-pointer items-center gap-2 rounded-chip border border-line bg-bone px-3 py-2.5 text-left text-[13px] font-semibold text-ink transition-colors hover:bg-mist"
-              >
-                <PhCalendarBlank size={16} color="#1D6B66" />
-                <span>{language === 'bn' ? 'নতুন সেশন / ক্যাম্প' : 'Manage Sessions'}</span>
-              </button>
+              {matchedModules.slice(0, 8).map((mod) => {
+                const Icon = mod.icon;
+                return (
+                  <button
+                    key={mod.path}
+                    type="button"
+                    onClick={() => {
+                      navigate(mod.path);
+                      setIsCommandPaletteOpen(false);
+                    }}
+                    className="flex cursor-pointer items-center justify-between rounded-chip border border-line bg-bone px-3 py-2 text-left text-xs font-semibold text-ink transition-colors hover:bg-mist"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Icon size={15} color="#1D6B66" />
+                      <span className="truncate">{mod.label}</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-slate">{mod.path}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -136,13 +174,13 @@ export const CommandPalette: React.FC = () => {
                 <div
                   key={item.id}
                   onClick={() => {
-                    setActiveView('queue');
+                    navigate('/queue');
                     setIsCommandPaletteOpen(false);
                   }}
                   className="flex cursor-pointer items-center justify-between rounded-pill px-3 py-2 transition-colors duration-150 hover:bg-mist"
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="rounded-[6px] bg-ink px-2 py-[3px] text-xs font-bold text-white">
+                    <span className="rounded-[6px] bg-ink px-2 py-[3px] text-xs font-bold text-white font-mono">
                       {item.ticketNumber}
                     </span>
                     <div>
@@ -168,21 +206,21 @@ export const CommandPalette: React.FC = () => {
               <div className="px-2 py-1 text-[11px] font-semibold uppercase text-slate">
                 {language === 'bn' ? 'রোগী তথ্য' : 'Registered Patients'}
               </div>
-              {filteredPatients.map((pat) => (
+              {filteredPatients.slice(0, 4).map((pat) => (
                 <div
                   key={pat.id}
                   onClick={() => {
-                    setActiveView('patients');
+                    navigate('/patients');
                     setIsCommandPaletteOpen(false);
                   }}
                   className="flex cursor-pointer items-center justify-between rounded-pill px-3 py-2 transition-colors duration-150 hover:bg-mist"
                 >
                   <div className="flex items-center gap-2">
-                    <PhUsers size={16} color="#1D6B66" />
+                    <PhUserCircle size={16} color="#1D6B66" />
                     <span className="text-[13px] font-semibold text-ink">
                       {language === 'bn' ? pat.fullNameBn : pat.fullName}
                     </span>
-                    <span className="text-[11px] text-slate">
+                    <span className="text-[11px] text-slate font-mono">
                       ({pat.canonicalHealoraId})
                     </span>
                   </div>
@@ -198,14 +236,14 @@ export const CommandPalette: React.FC = () => {
           {filteredHubs.length > 0 && (
             <div className="mb-2">
               <div className="px-2 py-1 text-[11px] font-semibold uppercase text-slate">
-                {language === 'bn' ? 'হাব কেন্দ্র' : 'Hubs'}
+                {language === 'bn' ? 'হাব কেন্দ্র' : 'Physical Hubs'}
               </div>
               {filteredHubs.map((hub) => (
                 <div
                   key={hub.id}
                   onClick={() => {
                     setSelectedHubId(hub.id);
-                    setActiveView('hubs');
+                    navigate('/hubs');
                     setIsCommandPaletteOpen(false);
                   }}
                   className="flex cursor-pointer items-center justify-between rounded-pill px-3 py-2 transition-colors duration-150 hover:bg-mist"

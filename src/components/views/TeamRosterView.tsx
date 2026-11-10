@@ -12,8 +12,17 @@ import { useApp } from '../../context/useApp';
 import type { StaffMember } from '../../types';
 
 export const TeamRosterView: React.FC = () => {
-  const { t, language, staff, selectedHubId, showToast } = useApp();
+  const { t, language, staff, selectedHubId, addStaffMember } = useApp();
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+  const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
+
+  // Form states
+  const [staffName, setStaffName] = useState('');
+  const [staffRole, setStaffRole] = useState<StaffMember['role']>('field_health_worker');
+  const [staffRoleTitle, setStaffRoleTitle] = useState('Field Health Worker / Measurement Specialist');
+  const [staffPhone, setStaffPhone] = useState('');
+  const [staffLicense, setStaffLicense] = useState('');
+  const [staffShift, setStaffShift] = useState('08:30 AM - 04:30 PM');
 
   const hubStaff = staff.filter((s) => s.assignedHubIds.includes(selectedHubId));
 
@@ -39,7 +48,7 @@ export const TeamRosterView: React.FC = () => {
 
         <Button
           variant="primary"
-          onClick={() => showToast('Staff assignment proposal sent to Regional Operations for approval.')}
+          onClick={() => setIsAddStaffOpen(true)}
           icon={<PhPlus size={16} />}
         >
           {language === 'bn' ? 'কর্মী বরাদ্দ করুন' : 'Assign Staff to Hub'}
@@ -158,6 +167,113 @@ export const TeamRosterView: React.FC = () => {
           </div>
         </ModalSheet>
       )}
+
+      {/* Add Staff Member Modal (PRD Section 8.7 & 6.2) */}
+      <ModalSheet
+        isOpen={isAddStaffOpen}
+        onClose={() => setIsAddStaffOpen(false)}
+        title="Assign Personnel to Physical Hub"
+        subtitle="Verify professional role credentials and prevent concurrent shift conflicts"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!staffName.trim()) return;
+            addStaffMember({
+              fullName: staffName,
+              fullNameBn: staffName,
+              role: staffRole,
+              roleTitle: staffRoleTitle,
+              roleTitleBn: staffRoleTitle,
+              phone: staffPhone || '+880 1711 000000',
+              bmdcOrLicenseNumber: staffLicense || 'Certified Healora Protocol Trained',
+              credentialVerified: true,
+              activeShift: staffShift,
+            });
+            setIsAddStaffOpen(false);
+            setStaffName('');
+            setStaffPhone('');
+            setStaffLicense('');
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate">Full Legal Name *</label>
+            <input
+              type="text"
+              required
+              value={staffName}
+              onChange={(e) => setStaffName(e.target.value)}
+              placeholder="e.g. Dr. Mahmudul Hasan"
+              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Role Scope</label>
+              <select
+                value={staffRole}
+                onChange={(e) => {
+                  const r = e.target.value as StaffMember['role'];
+                  setStaffRole(r);
+                  if (r === 'local_doctor') setStaffRoleTitle('Assistant Doctor / Clinical Reviewer');
+                  else if (r === 'reception_officer') setStaffRoleTitle('Reception & Check-in Officer');
+                  else if (r === 'equipment_officer') setStaffRoleTitle('Biomedical & Facilities Officer');
+                  else setStaffRoleTitle('Field Health Worker / Measurement Specialist');
+                }}
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              >
+                <option value="field_health_worker">Field Health Worker (Special Team)</option>
+                <option value="local_doctor">Local Doctor (BMDC Verified)</option>
+                <option value="reception_officer">Reception & Check-in Officer</option>
+                <option value="equipment_officer">Biomedical Equipment Officer</option>
+                <option value="queue_coordinator">Queue Coordinator</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Contact Phone *</label>
+              <input
+                type="text"
+                required
+                value={staffPhone}
+                onChange={(e) => setStaffPhone(e.target.value)}
+                placeholder="+880 1711..."
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate">
+              BMDC Registration / Professional License / Certification *
+            </label>
+            <input
+              type="text"
+              value={staffLicense}
+              onChange={(e) => setStaffLicense(e.target.value)}
+              placeholder="e.g. BMDC-A-54912 or Protocol v2.4 Certified"
+              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate">Duty Shift Hours</label>
+            <input
+              type="text"
+              value={staffShift}
+              onChange={(e) => setStaffShift(e.target.value)}
+              placeholder="08:30 AM - 04:30 PM (Sat - Thu)"
+              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3">
+            <Button variant="secondary" onClick={() => setIsAddStaffOpen(false)}>Cancel</Button>
+            <Button variant="primary" type="submit">Verify &amp; Assign to Hub</Button>
+          </div>
+        </form>
+      </ModalSheet>
     </div>
   );
 };

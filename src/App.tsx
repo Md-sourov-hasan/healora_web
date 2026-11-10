@@ -6,15 +6,20 @@ import { BangladeshBanner } from './components/common/BangladeshBanner';
 import { CommandPalette } from './components/navigation/CommandPalette';
 import { OverviewDashboard } from './components/views/OverviewDashboard';
 import { HubsView } from './components/views/HubsView';
+import { RegionsCatchmentView } from './components/views/RegionsCatchmentView';
 import { SessionsCampsView } from './components/views/SessionsCampsView';
 import { AppointmentsView } from './components/views/AppointmentsView';
 import { LiveQueueView } from './components/views/LiveQueueView';
 import { PatientsOperationalView } from './components/views/PatientsOperationalView';
 import { TeamRosterView } from './components/views/TeamRosterView';
-import { StationsEquipmentView } from './components/views/StationsEquipmentView';
-import { SyncMonitorExceptionsView } from './components/views/SyncMonitorExceptionsView';
+import { StationsView } from './components/views/StationsView';
+import { EquipmentView } from './components/views/EquipmentView';
+import { EncounterMonitoringView } from './components/views/EncounterMonitoringView';
+import { ExceptionsEscalationsView } from './components/views/ExceptionsEscalationsView';
 import { ReportsView } from './components/views/ReportsView';
-import { SettingsAuditView } from './components/views/SettingsAuditView';
+import { NotificationsActivityView } from './components/views/NotificationsActivityView';
+import { SettingsPermissionsView } from './components/views/SettingsPermissionsView';
+import { AuditLogsView } from './components/views/AuditLogsView';
 import { PhCheckCircle } from './components/icons/PhosphorIcons';
 
 const AppContent: React.FC = () => {
@@ -22,28 +27,38 @@ const AppContent: React.FC = () => {
 
   const renderActiveView = () => {
     switch (activeView) {
-      case 'overview':
+      case '/dashboard':
         return <OverviewDashboard />;
-      case 'hubs':
+      case '/hubs':
         return <HubsView />;
-      case 'sessions':
+      case '/regions':
+        return <RegionsCatchmentView />;
+      case '/sessions':
         return <SessionsCampsView />;
-      case 'appointments':
+      case '/appointments':
         return <AppointmentsView />;
-      case 'queue':
+      case '/queue':
         return <LiveQueueView />;
-      case 'patients':
+      case '/patients':
         return <PatientsOperationalView />;
-      case 'team':
+      case '/team':
         return <TeamRosterView />;
-      case 'equipment':
-        return <StationsEquipmentView />;
-      case 'reports':
+      case '/stations':
+        return <StationsView />;
+      case '/equipment':
+        return <EquipmentView />;
+      case '/encounters':
+        return <EncounterMonitoringView />;
+      case '/exceptions':
+        return <ExceptionsEscalationsView />;
+      case '/reports':
         return <ReportsView />;
-      case 'exceptions':
-        return <SyncMonitorExceptionsView />;
-      case 'audit':
-        return <SettingsAuditView />;
+      case '/notifications':
+        return <NotificationsActivityView />;
+      case '/settings':
+        return <SettingsPermissionsView />;
+      case '/audit-logs':
+        return <AuditLogsView />;
       default:
         return <OverviewDashboard />;
     }
@@ -51,7 +66,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-bone font-ui text-ink">
-      {/* 248px Desktop Sidebar (Design System Ch 12) */}
+      {/* 260px Desktop Sidebar (Design System Ch 12) */}
       <Sidebar />
 
       {/* Main Content Area */}
@@ -71,7 +86,7 @@ const AppContent: React.FC = () => {
       {/* Quick Search & Command Palette (Cmd+K) */}
       <CommandPalette />
 
-      {/* Organic Toast Notification (Design System Ch 7.9: Toast ink, r14 sits 118px above the bottom) */}
+      {/* Organic Toast Notification */}
       {toast && (
         <div className="fixed bottom-[118px] left-1/2 z-[1000] flex -translate-x-1/2 animate-fade-up items-center gap-2.5 rounded-ctl bg-ink px-6 py-3 text-sm font-semibold text-white shadow-float">
           <PhCheckCircle size={18} color="#8FB3A3" />

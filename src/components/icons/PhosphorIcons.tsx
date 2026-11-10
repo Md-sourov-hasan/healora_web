@@ -238,3 +238,69 @@ export const PhCloudCheck: React.FC<IconProps> = ({ size = 20, color = 'currentC
   </svg>
 );
 
+export const PhGlobe: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 256 256" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="128" cy="128" r="96" />
+    <line x1="32" y1="128" x2="224" y2="128" />
+    <path d="M128 32a132 132 0 0 0 0 192M128 32a132 132 0 0 1 0 192" />
+  </svg>
+);
+
+export const PhDesktop: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 256 256" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="32" y="48" width="192" height="136" rx="16" />
+    <line x1="128" y1="184" x2="128" y2="224" />
+    <line x1="88" y1="224" x2="168" y2="224" />
+  </svg>
+);
+
+export const PhWrench: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 256 256" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="m144.3 111.7 67.9-67.9a32 32 0 0 0-45.3-45.3L99 66.4a72 72 0 1 0 45.3 45.3Z" />
+    <circle cx="80" cy="176" r="16" />
+  </svg>
+);
+
+export const PhActivity: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 256 256" fill="none" stroke={color} strokeWidth="18" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M32 128h40l24-56 48 112 32-80 16 24h32" />
+  </svg>
+);
+
+export const PhFileText: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 256 256" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M200 224H56a8 8 0 0 1-8-8V40a8 8 0 0 1 8-8h96l56 56v128a8 8 0 0 1-8 8Z" />
+    <polyline points="152 32 152 88 208 88" />
+    <line x1="96" y1="136" x2="160" y2="136" />
+    <line x1="96" y1="168" x2="160" y2="168" />
+  </svg>
+);
+
+export const PhSlidersHorizontal: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 256 256" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="40" y1="80" x2="104" y2="80" />
+    <line x1="144" y1="80" x2="216" y2="80" />
+    <circle cx="124" cy="80" r="20" />
+    <line x1="40" y1="176" x2="152" y2="176" />
+    <line x1="192" y1="176" x2="216" y2="176" />
+    <circle cx="172" cy="176" r="20" />
+  </svg>
+);
+
+export const PhWarningOctagon: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 256 256" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M84.7 32h86.6L224 84.7v86.6L171.3 224H84.7L32 171.3V84.7Z" />
+    <line x1="128" y1="80" x2="128" y2="136" strokeWidth="18" />
+    <circle cx="128" cy="172" r="8" fill={color} />
+  </svg>
+);
+
+export const PhLockKey: React.FC<IconProps> = ({ size = 20, color = 'currentColor', className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 256 256" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="40" y="88" width="176" height="128" rx="16" />
+    <path d="M88 88V56a40 40 0 0 1 80 0v32" />
+    <circle cx="128" cy="144" r="12" fill={color} />
+    <line x1="128" y1="156" x2="128" y2="180" strokeWidth="18" />
+  </svg>
+);
+

@@ -17,11 +17,20 @@ export const AppointmentsView: React.FC = () => {
     appointments,
     selectedHubId,
     checkInAppointment,
+    markAppointmentNoShow,
+    createAppointment,
     registerWalkIn,
   } = useApp();
 
   const [filterSearch, setFilterSearch] = useState('');
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
+  const [isBookApptOpen, setIsBookApptOpen] = useState(false);
+
+  // Book Appt Form states
+  const [bookName, setBookName] = useState('');
+  const [bookPhone, setBookPhone] = useState('');
+  const [bookSlot, setBookSlot] = useState('11:00 AM');
+  const [bookService, setBookService] = useState('Basic Vitals & Screening');
 
   // Walk-in form states
   const [walkInName, setWalkInName] = useState('');
@@ -78,6 +87,13 @@ export const AppointmentsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            onClick={() => setIsBookApptOpen(true)}
+            icon={<PhPlus size={16} />}
+          >
+            {language === 'bn' ? 'নতুন বুকিং' : 'Book Appointment'}
+          </Button>
           <Button
             variant="primary"
             onClick={() => setIsWalkInOpen(true)}
@@ -206,16 +222,27 @@ export const AppointmentsView: React.FC = () => {
                 {/* Action button */}
                 <td className="px-5 py-4 text-right">
                   {apt.status === 'pending_confirmation' || apt.status === 'confirmed' ? (
-                    <button
-                      type="button"
-                      onClick={() => checkInAppointment(apt.id)}
-                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-chip border-none bg-ink px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-ink-hover active:scale-[0.985]"
-                    >
-                      <span>{t.checkInPatient}</span>
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => checkInAppointment(apt.id)}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-chip border-none bg-ink px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-ink-hover active:scale-[0.985]"
+                      >
+                        <span>{t.checkInPatient}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => markAppointmentNoShow(apt.id)}
+                        className="cursor-pointer rounded-chip border border-line bg-paper px-2.5 py-2 text-xs font-semibold text-slate hover:text-bad"
+                      >
+                        No-Show
+                      </button>
+                    </div>
+                  ) : apt.status === 'no_show' ? (
+                    <span className="text-xs font-semibold text-bad">No-Show Recorded</span>
                   ) : (
                     <span className="text-[13px] font-medium text-slate">
-                      Already Checked In
+                      Checked In ({apt.queueToken})
                     </span>
                   )}
                 </td>
@@ -310,6 +337,91 @@ export const AppointmentsView: React.FC = () => {
             <Button type="submit" variant="primary">
               Register &amp; Issue Ticket
             </Button>
+          </div>
+        </form>
+      </ModalSheet>
+
+      {/* Book New Appointment Modal */}
+      <ModalSheet
+        isOpen={isBookApptOpen}
+        onClose={() => setIsBookApptOpen(false)}
+        title="Schedule Health Hub Appointment"
+        subtitle="Reserve dedicated time slot with automated capacity deduction"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!bookName.trim()) return;
+            createAppointment({
+              patientName: bookName,
+              patientPhone: bookPhone || '+880 1711 000000',
+              slotTime: bookSlot,
+              serviceType: bookService,
+              bookingSource: 'patient_app',
+            });
+            setBookName('');
+            setBookPhone('');
+            setIsBookApptOpen(false);
+          }}
+          className="flex flex-col gap-4"
+        >
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate">Patient Full Name *</label>
+            <input
+              type="text"
+              required
+              value={bookName}
+              onChange={(e) => setBookName(e.target.value)}
+              placeholder="e.g. Morshedul Alam"
+              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Contact Phone *</label>
+              <input
+                type="text"
+                required
+                value={bookPhone}
+                onChange={(e) => setBookPhone(e.target.value)}
+                placeholder="+880 1711..."
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Requested Slot</label>
+              <select
+                value={bookSlot}
+                onChange={(e) => setBookSlot(e.target.value)}
+                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              >
+                <option value="09:00 AM">09:00 AM - 09:15 AM</option>
+                <option value="09:30 AM">09:30 AM - 09:45 AM</option>
+                <option value="10:00 AM">10:00 AM - 10:15 AM</option>
+                <option value="10:30 AM">10:30 AM - 10:45 AM</option>
+                <option value="11:00 AM">11:00 AM - 11:15 AM</option>
+                <option value="11:30 AM">11:30 AM - 11:45 AM</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate">Service Category</label>
+            <select
+              value={bookService}
+              onChange={(e) => setBookService(e.target.value)}
+              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+            >
+              <option value="Basic Vitals & Screening">Basic Vitals & Screening (BP, SpO2, Pulse)</option>
+              <option value="Diabetes & Hypertension Review">Diabetes & Hypertension Review</option>
+              <option value="Cardiac & Tele-triage Consultation">Cardiac & Tele-triage Consultation</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3">
+            <Button variant="secondary" onClick={() => setIsBookApptOpen(false)}>Cancel</Button>
+            <Button variant="primary" type="submit">Confirm Booking</Button>
           </div>
         </form>
       </ModalSheet>
