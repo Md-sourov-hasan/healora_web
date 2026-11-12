@@ -14,6 +14,8 @@ import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
 import { useApp } from '../../context/AppContext';
 import { ROLES_CONFIG, CORE_OPERATIONS_ROLES } from '../../config/rolesConfig';
+import { regionsService, type ApiRegion } from '../../services/regionsService';
+import { staffService, type ApiUser } from '../../services/staffService';
 import type { UserRole } from '../../types';
 
 export const SettingsPermissionsView: React.FC = () => {
@@ -32,7 +34,6 @@ export const SettingsPermissionsView: React.FC = () => {
     revokeStaffRole,
     staff,
     hubs,
-    regions,
     refreshBackendData,
   } = useApp();
 
@@ -49,6 +50,28 @@ export const SettingsPermissionsView: React.FC = () => {
   const [assignScopeType, setAssignScopeType] = useState<'platform' | 'region' | 'hub' | 'session'>('hub');
   const [assignScopeId, setAssignScopeId] = useState('');
   const [isSubmittingRole, setIsSubmittingRole] = useState(false);
+  const [backendUsers, setBackendUsers] = useState<ApiUser[]>([]);
+  const [backendRegions, setBackendRegions] = useState<ApiRegion[]>([]);
+  const [isLoadingAssignmentOptions, setIsLoadingAssignmentOptions] = useState(false);
+  const [assignmentOptionsError, setAssignmentOptionsError] = useState<string | null>(null);
+
+  const openAssignRoleModal = async () => {
+    setIsAssignModalOpen(true);
+    setIsLoadingAssignmentOptions(true);
+    setAssignmentOptionsError(null);
+    try {
+      const [usersResult, regionsResult] = await Promise.all([
+        staffService.getUsers({ limit: 200 }),
+        regionsService.getRegions({ limit: 200, level: 'operational_region' }),
+      ]);
+      setBackendUsers(usersResult.items.filter((user) => user.status !== 'disabled'));
+      setBackendRegions(regionsResult.items.filter((region) => region.active));
+    } catch (err) {
+      setAssignmentOptionsError(err instanceof Error ? err.message : 'Could not load staff and regions from the backend.');
+    } finally {
+      setIsLoadingAssignmentOptions(false);
+    }
+  };
 
   const handleAssignRoleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +85,7 @@ export const SettingsPermissionsView: React.FC = () => {
         role: assignRole,
         scopeType: assignScopeType,
         hubId: assignScopeType === 'hub' ? (assignScopeId || hubs[0]?.id) : undefined,
-        regionId: assignScopeType === 'region' ? (assignScopeId || regions[0]?.id) : undefined,
+        regionId: assignScopeType === 'region' ? assignScopeId : undefined,
       });
       setIsAssignModalOpen(false);
       setAssignUserId('');
@@ -275,7 +298,7 @@ export const SettingsPermissionsView: React.FC = () => {
             </Button>
             <Button
               variant="primary"
-              onClick={() => setIsAssignModalOpen(true)}
+              onClick={() => void openAssignRoleModal()}
               icon={<PhPlus size={16} />}
             >
               Assign Role (API)
@@ -510,12 +533,20 @@ export const SettingsPermissionsView: React.FC = () => {
       >
         <form onSubmit={handleAssignRoleSubmit} className="space-y-4">
           <p className="text-xs text-slate">
-            Assign one of the 7 operational roles to a staff member. Scopes are cryptographically audited and validated on the Render backend.
+            Choose a staff account and assign a role within the correct region or hub scope. The backend validates and audits the assignment.
           </p>
 
+          {assignmentOptionsError && (
+            <p role="alert" className="rounded-lg border border-bad/20 bg-bad-bg px-3 py-2 text-xs text-bad-fg">
+              Could not load backend users or regions: {assignmentOptionsError}. Confirm you signed in with a current MFA code, then reopen this form.
+            </p>
+          )}
+
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Select Staff Member</label>
-            {staff.length > 0 ? (
+            <label className="mb-1 block text-xs font-semibold text-slate">Select Backend Staff Account</label>
+            {isLoadingAssignmentOptions ? (
+              <p className="rounded-lg border border-line bg-bone px-3 py-3 text-sm text-slate">Loading staff accounts…</p>
+            ) : backendUsers.length > 0 ? (
               <select
                 value={assignUserId}
                 onChange={(e) => setAssignUserId(e.target.value)}
@@ -523,21 +554,16 @@ export const SettingsPermissionsView: React.FC = () => {
                 className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none"
               >
                 <option value="">-- Choose Staff User --</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.fullName} ({s.roleTitle})
+                {backendUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} — {user.email} ({user.status})
                   </option>
                 ))}
               </select>
             ) : (
-              <input
-                type="text"
-                required
-                placeholder="e.g. usr_01 or staff email"
-                value={assignUserId}
-                onChange={(e) => setAssignUserId(e.target.value)}
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              />
+              <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">
+                No backend staff accounts were returned. Create or invite the staff account first, then reopen this form.
+              </p>
             )}
           </div>
 
@@ -545,7 +571,12 @@ export const SettingsPermissionsView: React.FC = () => {
             <label className="mb-1 block text-xs font-semibold text-slate">Operational Role</label>
             <select
               value={assignRole}
-              onChange={(e) => setAssignRole(e.target.value as UserRole)}
+              onChange={(e) => {
+                const role = e.target.value as UserRole;
+                setAssignRole(role);
+                setAssignScopeType(role === 'regional_ops_manager' ? 'region' : role === 'platform_super_admin' ? 'platform' : 'hub');
+                setAssignScopeId('');
+              }}
               className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none"
             >
               {CORE_OPERATIONS_ROLES.map((roleKey) => {
@@ -564,7 +595,11 @@ export const SettingsPermissionsView: React.FC = () => {
               <label className="mb-1 block text-xs font-semibold text-slate">Scope Boundary</label>
               <select
                 value={assignScopeType}
-                onChange={(e) => setAssignScopeType(e.target.value as any)}
+                disabled={assignRole === 'regional_ops_manager' || assignRole === 'platform_super_admin'}
+                onChange={(e) => {
+                  setAssignScopeType(e.target.value as 'platform' | 'region' | 'hub' | 'session');
+                  setAssignScopeId('');
+                }}
                 className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none"
               >
                 <option value="platform">Platform Wide</option>
@@ -586,16 +621,20 @@ export const SettingsPermissionsView: React.FC = () => {
                     <option key={h.id} value={h.id}>{h.name}</option>
                   ))}
                 </select>
-              ) : assignScopeType === 'region' && regions.length > 0 ? (
+              ) : assignScopeType === 'region' && backendRegions.length > 0 ? (
                 <select
                   value={assignScopeId}
                   onChange={(e) => setAssignScopeId(e.target.value)}
+                  required={assignScopeType === 'region'}
                   className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none"
                 >
-                  {regions.map((r) => (
+                  <option value="">-- Choose Region --</option>
+                  {backendRegions.map((r) => (
                     <option key={r.id} value={r.id}>{r.name}</option>
                   ))}
                 </select>
+              ) : assignScopeType === 'region' ? (
+                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">No active operational regions available from the backend.</p>
               ) : (
                 <input
                   type="text"
@@ -612,7 +651,7 @@ export const SettingsPermissionsView: React.FC = () => {
             <Button variant="secondary" onClick={() => setIsAssignModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" disabled={isSubmittingRole}>
+            <Button variant="primary" type="submit" disabled={isSubmittingRole || isLoadingAssignmentOptions || !backendUsers.length || (assignScopeType === 'region' && !assignScopeId)}>
               {isSubmittingRole ? 'Assigning via API...' : 'Commit Assignment (API)'}
             </Button>
           </div>

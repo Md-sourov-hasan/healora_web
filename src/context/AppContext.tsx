@@ -54,7 +54,7 @@ import { encountersExceptionsService } from '../services/encountersExceptionsSer
 import { reportsAuditService } from '../services/reportsAuditService';
 import { staffService, type ApiRoleAssignment } from '../services/staffService';
 import { CORE_OPERATIONS_ROLES, isRouteAllowedForRole, ROLES_CONFIG } from '../config/rolesConfig';
-import { getStoredAccessToken, refreshAuthToken } from '../services/apiClient';
+import { ApiError, getStoredAccessToken, refreshAuthToken } from '../services/apiClient';
 import {
   mapApiHubToHub,
   mapApiRegionToRegion,
@@ -387,7 +387,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(`Role ${data.role} successfully assigned to staff.`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'API error assigning role';
-      showToast(`Failed to assign role: ${msg}`);
+      const code = err instanceof ApiError ? ` (${err.code})` : '';
+      showToast(`Failed to assign role: ${msg}${code}`);
       throw err;
     }
   };

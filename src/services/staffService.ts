@@ -28,7 +28,7 @@ export interface ApiUser {
   name: string;
   nameBn?: string | null;
   phone?: string | null;
-  status: 'active' | 'suspended' | 'locked' | 'inactive';
+  status: 'invited' | 'active' | 'suspended' | 'disabled' | 'locked' | 'inactive';
   mfaEnabled: boolean;
   preferredLanguage?: string;
   createdAt?: string;
