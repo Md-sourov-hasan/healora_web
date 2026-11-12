@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   PhPlus,
   PhArrowsClockwise,
+  PhDesktop,
 } from '../icons/PhosphorIcons';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -78,7 +79,7 @@ export const StationsView: React.FC = () => {
             {t.navStations}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub.name} • {language === 'bn'
+            {currentHub?.name || 'Healora Physical Hub'} • {language === 'bn'
               ? 'অভ্যর্থনা, ভাইটালস পরিমাপ কক্ষ, ডাক্তার রিভিউ ও কাউন্সেলিং স্টেশন পরিচালনা'
               : 'Dedicated physical care desks, live occupancy, staff allocation & queue progress'}
           </p>
@@ -134,7 +135,22 @@ export const StationsView: React.FC = () => {
 
       {/* Stations Grid */}
       <div className="grid grid-cols-2 gap-6">
-        {hubStations.map((station) => {
+        {hubStations.length === 0 ? (
+          <div className="col-span-2 rounded-2xl border border-line bg-paper p-12 text-center">
+            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-sage-200 text-pine">
+              <PhDesktop size={24} />
+            </div>
+            <h3 className="text-base font-bold text-ink">
+              {language === 'bn' ? 'কোনো স্টেশন তৈরি করা নেই' : 'No Service Stations Configured'}
+            </h3>
+            <p className="mt-1 text-sm text-slate">
+              {language === 'bn'
+                ? 'উপরে "নতুন স্টেশন তৈরি" বাটনে ক্লিক করে অভ্যর্থনা বা ভাইটালস পরিমাপ কক্ষ যুক্ত করুন।'
+                : 'Zero dummy data. Click "Add Station" above to configure your physical service desks.'}
+            </p>
+          </div>
+        ) : (
+          hubStations.map((station) => {
           const waitingAtStation = hubQueue.filter(
             (q) => q.stationId === station.id && q.currentStatus === 'waiting'
           ).length;
@@ -249,7 +265,8 @@ export const StationsView: React.FC = () => {
               </div>
             </Card>
           );
-        })}
+        })
+        )}
       </div>
 
       {/* Add Station Modal */}

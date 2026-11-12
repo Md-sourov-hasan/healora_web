@@ -25,7 +25,7 @@ export const ReportsView: React.FC = () => {
             {t.navReports}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub.name} • {language === 'bn'
+            {currentHub?.name || 'All Physical Hubs'} • {language === 'bn'
               ? 'গড় অপেক্ষার সময়, সেশন সক্ষমতা ব্যবহার ও মোবাইল সিঙ্ক নির্ভরযোগ্যতা'
               : 'Aggregated, de-identified operational throughput, median wait duration and sync reliability'}
           </p>

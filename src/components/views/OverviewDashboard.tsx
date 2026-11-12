@@ -7,6 +7,7 @@ import {
   PhGauge,
   PhHeartbeat,
   PhPlus,
+  PhHospital,
 } from '../icons/PhosphorIcons';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -96,6 +97,32 @@ export const OverviewDashboard: React.FC = () => {
       setIsNewSessionOpen(false);
     }
   };
+
+  if (!currentHub) {
+    return (
+      <div className="mx-auto max-w-4xl px-10 py-16 text-center">
+        <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-sage-200 text-pine">
+          <PhHospital size={32} />
+        </div>
+        <h2 className="text-2xl font-bold text-ink">
+          {language === 'bn' ? 'কোনো হাব নিবন্ধিত নেই' : 'No Operational Hubs Found'}
+        </h2>
+        <p className="mt-2 text-sm text-slate">
+          {language === 'bn'
+            ? 'সিস্টেমে কোনো ডামি ডেটা নেই। শুরু করতে একটি নতুন হাব যুক্ত করুন অথবা লাইভ API থেকে ডেটা সিঙ্ক করুন।'
+            : 'Zero dummy data in frontend. Register your first physical hub or sync live data from the backend to get started.'}
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Button variant="primary" onClick={() => navigate('/hubs')}>
+            {language === 'bn' ? 'হাব নিবন্ধন করুন' : 'Register New Hub'}
+          </Button>
+          <Button variant="secondary" onClick={() => navigate('/sessions')}>
+            {language === 'bn' ? 'সেশন শিডিউল করুন' : 'Schedule Session'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-10 py-8">

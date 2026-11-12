@@ -99,7 +99,16 @@ export const PatientsOperationalView: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((patient) => (
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-12 text-center text-sm text-slate">
+                  {search
+                    ? (language === 'bn' ? 'অনুসন্ধানের সাথে মিলে এমন কোনো রোগী পাওয়া যায়নি' : 'No patients found matching search criteria')
+                    : (language === 'bn' ? 'কোনো রোগী নেই। হিলোরা আইডি বা ফোন দিয়ে অনুসন্ধান করুন।' : 'Zero dummy data in frontend. Look up patients by ID/phone or register a walk-in.')}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((patient) => (
               <tr
                 key={patient.id}
                 className="border-b border-line transition-colors duration-100 last:border-b-0 hover:bg-bone"
@@ -169,7 +178,8 @@ export const PatientsOperationalView: React.FC = () => {
                   </button>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </Card>

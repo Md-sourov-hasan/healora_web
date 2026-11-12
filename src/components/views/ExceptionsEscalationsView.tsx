@@ -70,7 +70,7 @@ export const ExceptionsEscalationsView: React.FC = () => {
             {t.navExceptions}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub.name} • {language === 'bn'
+            {currentHub?.name || 'Healora Hub'} • {language === 'bn'
               ? 'মোবাইল সিঙ্ক জটিলতা, অসম্পূর্ণ পরিমাপ, অতিরিক্ত অপেক্ষার সময় ও চিকিৎসা রেফারেল ট্র্যাকিং'
               : 'Real-time exception routing, offline sync recovery, wait-time SLA violations and clinical referrals'}
           </p>
@@ -97,17 +97,17 @@ export const ExceptionsEscalationsView: React.FC = () => {
                 Emergency Referral Facility On Standby (PRD Section 13.3 SOP)
               </div>
               <h3 className="m-0 text-base font-bold text-ink">
-                {currentHub.emergencyReferralFacility}
+                {currentHub?.emergencyReferralFacility || 'District General Hospital'}
               </h3>
               <div className="text-xs text-slate">
-                Direct Emergency Line: <strong className="text-bad">{currentHub.emergencyPhone}</strong> • Nearest ambulance dispatch
+                Direct Emergency Line: <strong className="text-bad">{currentHub?.emergencyPhone || '+880 1700-000000'}</strong> • Nearest ambulance dispatch
               </div>
             </div>
           </div>
 
           <Button
             variant="secondary"
-            onClick={() => showToast(`Emergency contact dialed: ${currentHub.emergencyPhone}`)}
+            onClick={() => showToast(`Emergency contact dialed: ${currentHub?.emergencyPhone || '+880 1700-000000'}`)}
             className="text-bad! border-bad/40!"
           >
             Summon Emergency Contact
@@ -164,7 +164,16 @@ export const ExceptionsEscalationsView: React.FC = () => {
 
       {/* Exceptions List */}
       <div className="space-y-3.5">
-        {filtered.map((item) => (
+        {filtered.length === 0 ? (
+          <Card variant="card" className="py-12 text-center text-slate">
+            <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-mist text-teal">
+              <PhCheckCircle size={24} />
+            </div>
+            <p className="font-semibold text-ink">No active exceptions or escalations</p>
+            <p className="text-xs text-slate">All session queues, patient wait times, device calibrations, and mobile synchronizations are operating within normal operational parameters.</p>
+          </Card>
+        ) : (
+          filtered.map((item) => (
           <Card
             key={item.id}
             variant="card"
@@ -238,7 +247,8 @@ export const ExceptionsEscalationsView: React.FC = () => {
               </div>
             </div>
           </Card>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Resolve Modal */}

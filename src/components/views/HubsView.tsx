@@ -61,7 +61,22 @@ export const HubsView: React.FC = () => {
 
       {/* Hub Cards Grid */}
       <div className="grid grid-cols-2 gap-6">
-        {hubs.map((hub) => {
+        {hubs.length === 0 ? (
+          <div className="col-span-2 rounded-2xl border border-line bg-paper p-12 text-center">
+            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-sage-200 text-pine">
+              <PhHospital size={24} />
+            </div>
+            <h3 className="text-base font-bold text-ink">
+              {language === 'bn' ? 'কোনো হাব নিবন্ধিত নেই' : 'No Hubs Registered'}
+            </h3>
+            <p className="mt-1 text-sm text-slate">
+              {language === 'bn'
+                ? 'উপরে "+ নতুন হাব যুক্ত করুন" বাটনে ক্লিক করে হাব নিবন্ধন করুন।'
+                : 'Zero dummy data. Click "+ Add New Hub" above to register your first physical hub.'}
+            </p>
+          </div>
+        ) : (
+          hubs.map((hub) => {
           const isSelected = hub.id === selectedHubId;
 
           return (
@@ -172,7 +187,8 @@ export const HubsView: React.FC = () => {
               </div>
             </Card>
           );
-        })}
+        })
+        )}
       </div>
 
       {/* Edit Hub Profile Drawer */}

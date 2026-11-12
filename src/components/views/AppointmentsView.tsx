@@ -151,7 +151,16 @@ export const AppointmentsView: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((apt) => (
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-12 text-center text-sm text-slate">
+                  {filterSearch
+                    ? (language === 'bn' ? 'কোনো অ্যাপয়েন্টমেন্ট পাওয়া যায়নি' : 'No appointments matching search')
+                    : (language === 'bn' ? 'কোনো অ্যাপয়েন্টমেন্ট নেই। উপরে "নতুন বুকিং" বা "ওয়াক-ইন আগমন" বাটনে ক্লিক করুন।' : 'No appointments booked yet. Click "Book Appointment" or "Add Walk-In" to register.')}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((apt) => (
               <tr
                 key={apt.id}
                 className="border-b border-line transition-colors duration-100 last:border-b-0 hover:bg-bone"
@@ -247,7 +256,8 @@ export const AppointmentsView: React.FC = () => {
                   )}
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </Card>

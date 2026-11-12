@@ -87,7 +87,22 @@ export const SessionsCampsView: React.FC = () => {
 
       {/* Sessions Grid */}
       <div className="grid grid-cols-2 gap-6">
-        {hubSessions.map((session) => (
+        {hubSessions.length === 0 ? (
+          <div className="col-span-2 rounded-2xl border border-line bg-paper p-12 text-center">
+            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-sage-200 text-pine">
+              <PhCalendarBlank size={24} />
+            </div>
+            <h3 className="text-base font-bold text-ink">
+              {language === 'bn' ? 'কোনো সেশন নির্ধারিত নেই' : 'No Sessions Scheduled'}
+            </h3>
+            <p className="mt-1 text-sm text-slate">
+              {language === 'bn'
+                ? 'উপরে "+ নতুন সেশন" বাটনে ক্লিক করে নিয়মিত ক্লিনিক বা ক্যাম্প শিডিউল করুন।'
+                : 'Zero dummy data. Click "+ New Session" above to schedule a clinic or health camp.'}
+            </p>
+          </div>
+        ) : (
+          hubSessions.map((session) => (
           <Card key={session.id} variant="card">
             <div className="mb-3 flex items-start justify-between">
               <div>
@@ -202,7 +217,8 @@ export const SessionsCampsView: React.FC = () => {
               </div>
             </div>
           </Card>
-        ))}
+        ))
+        )}
       </div>
 
       {/* New Session Modal */}

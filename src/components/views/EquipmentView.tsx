@@ -104,7 +104,7 @@ export const EquipmentView: React.FC = () => {
             {t.navEquipment}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub.name} • {language === 'bn'
+            {currentHub?.name || 'Healora Hub'} • {language === 'bn'
               ? 'পরিমাপ ডিভাইসের নিয়মিত ক্যালিব্রেশন, ব্যাটারি স্বাস্থ্য ও ব্যবহারযোগ্যতা স্থিতি'
               : 'Medical device calibration logs, serial attributions & session readiness safeguards'}
           </p>
@@ -198,7 +198,18 @@ export const EquipmentView: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-line text-sm">
-            {filteredEquipment.map((device) => {
+            {filteredEquipment.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-12 text-center text-slate">
+                  <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-mist text-teal">
+                    <PhShieldCheck size={24} />
+                  </div>
+                  <p className="font-semibold text-ink">No biomedical equipment registered</p>
+                  <p className="text-xs text-slate">Register a device or sync equipment records from the central hub inventory.</p>
+                </td>
+              </tr>
+            ) : (
+              filteredEquipment.map((device) => {
               const isOverdue = device.status === 'calibration_due';
               return (
                 <tr key={device.id} className="transition-colors hover:bg-mist/30">
@@ -276,7 +287,7 @@ export const EquipmentView: React.FC = () => {
                   </td>
                 </tr>
               );
-            })}
+            }))}
           </tbody>
         </table>
       </Card>

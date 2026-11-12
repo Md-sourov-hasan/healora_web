@@ -75,7 +75,7 @@ export const AuditLogsView: React.FC = () => {
             {t.navAuditLogs}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub.name} • {language === 'bn'
+            {currentHub?.name || 'Central Audit Ledger'} • {language === 'bn'
               ? 'সকল অপারেশনাল পরিবর্তন, চেক-ইন, কর্মী নির্ধারণ ও নিরাপত্তা অ্যাক্সেসের অপরিবর্তনীয় প্রমাণ'
               : 'Cryptographically ordered activity log recording every administrative, patient lookup and security interaction'}
           </p>
@@ -198,7 +198,18 @@ export const AuditLogsView: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-line text-sm">
-            {filtered.map((log) => (
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-12 text-center text-slate">
+                  <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-mist text-teal">
+                    <PhShieldCheck size={24} />
+                  </div>
+                  <p className="font-semibold text-ink">No audit events recorded</p>
+                  <p className="text-xs text-slate">All user logins, patient lookups, and session modifications will be recorded immutably here.</p>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((log) => (
               <tr key={log.id} className="transition-colors hover:bg-mist/30">
                 <td className="px-5 py-4 font-mono text-xs text-slate whitespace-nowrap">
                   {log.timestamp}
@@ -232,7 +243,8 @@ export const AuditLogsView: React.FC = () => {
                   </button>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </Card>

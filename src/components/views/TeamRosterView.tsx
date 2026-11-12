@@ -57,7 +57,22 @@ export const TeamRosterView: React.FC = () => {
 
       {/* Staff Cards Grid */}
       <div className="grid grid-cols-2 gap-6">
-        {hubStaff.map((person) => (
+        {hubStaff.length === 0 ? (
+          <div className="col-span-2 rounded-2xl border border-line bg-paper p-12 text-center">
+            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-sage-200 text-pine">
+              <PhShieldCheck size={24} />
+            </div>
+            <h3 className="text-base font-bold text-ink">
+              {language === 'bn' ? 'কোনো কর্মী বরাদ্দ নেই' : 'No Staff Assigned to this Hub'}
+            </h3>
+            <p className="mt-1 text-sm text-slate">
+              {language === 'bn'
+                ? 'উপরে "কর্মী বরাদ্দ করুন" বাটনে ক্লিক করে ডাক্তার বা স্বাস্থ্য সহকারী যুক্ত করুন।'
+                : 'Zero dummy data. Click "Assign Staff to Hub" above to allocate clinical staff.'}
+            </p>
+          </div>
+        ) : (
+          hubStaff.map((person) => (
           <Card key={person.id} variant="card">
             <div className="mb-3.5 flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -123,7 +138,8 @@ export const TeamRosterView: React.FC = () => {
               </button>
             </div>
           </Card>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Staff Details Drawer */}

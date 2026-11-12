@@ -163,7 +163,16 @@ export const LiveQueueView: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredQueue.map((item) => (
+            {filteredQueue.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-12 text-center text-sm text-slate">
+                  {language === 'bn'
+                    ? 'কিউতে কোনো রোগী অপেক্ষমাণ নেই। চেক-ইন বা ওয়াক-ইন সম্পন্ন হলে এখানে লাইভ সিরিয়াল প্রদর্শিত হবে।'
+                    : 'Live queue is currently empty. Patients will appear here in real-time as they check in at reception.'}
+                </td>
+              </tr>
+            ) : (
+              filteredQueue.map((item) => (
               <tr
                 key={item.id}
                 className="border-b border-line transition-colors duration-100 last:border-b-0 hover:bg-bone"
@@ -242,7 +251,8 @@ export const LiveQueueView: React.FC = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </Card>

@@ -179,8 +179,17 @@ export const RegionsCatchmentView: React.FC = () => {
 
       {/* Tab 1: Catchment Areas */}
       {activeTab === 'catchments' && (
-        <div className="grid grid-cols-2 gap-6">
-          {filteredCatchments.map((catchment) => {
+        filteredCatchments.length === 0 ? (
+          <Card variant="card" className="py-12 text-center text-slate">
+            <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-mist text-teal">
+              <PhMapPin size={24} />
+            </div>
+            <p className="font-semibold text-ink">No catchment areas mapped</p>
+            <p className="text-xs text-slate">Define an administrative area or upazila boundary to connect patients to physical hub locations.</p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 gap-6">
+            {filteredCatchments.map((catchment) => {
             const mappedHub = hubs.find((h) => h.id === catchment.hubId);
             return (
               <Card key={catchment.id} variant="card" className="border-t-3! border-t-teal!">
@@ -238,13 +247,23 @@ export const RegionsCatchmentView: React.FC = () => {
               </Card>
             );
           })}
-        </div>
+          </div>
+        )
       )}
 
       {/* Tab 2: Administrative Regions */}
       {activeTab === 'regions' && (
-        <div className="grid grid-cols-2 gap-6">
-          {regions.map((region) => (
+        regions.length === 0 ? (
+          <Card variant="card" className="py-12 text-center text-slate">
+            <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-mist text-teal">
+              <PhGlobe size={24} />
+            </div>
+            <p className="font-semibold text-ink">No administrative regions configured</p>
+            <p className="text-xs text-slate">Create an administrative region to assign regional operations managers and group multiple physical hubs.</p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 gap-6">
+            {regions.map((region) => (
             <Card key={region.id} variant="card" className="border-t-3! border-t-pine!">
               <div className="mb-3 flex items-start justify-between">
                 <div>
@@ -291,7 +310,8 @@ export const RegionsCatchmentView: React.FC = () => {
               </div>
             </Card>
           ))}
-        </div>
+          </div>
+        )
       )}
 
       {/* Modal: Add Catchment */}

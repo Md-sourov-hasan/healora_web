@@ -93,7 +93,7 @@ export const NotificationsActivityView: React.FC = () => {
             {t.navNotifications}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub.name} • {language === 'bn'
+            {currentHub?.name || 'Healora Hub'} • {language === 'bn'
               ? 'অ্যাপয়েন্টমেন্ট নিশ্চিতকরণ, কিউ টোকেন এসএমএস, ক্লিনিক্যাল অ্যালার্ট ও প্রাক-সেশন বার্তা'
               : 'SMS gateways, push alerts, session announcements and audited delivery trackers'}
           </p>
@@ -173,7 +173,16 @@ export const NotificationsActivityView: React.FC = () => {
 
       {/* Notifications List */}
       <div className="space-y-3.5">
-        {filtered.map((item) => (
+        {filtered.length === 0 ? (
+          <Card variant="card" className="py-12 text-center text-slate">
+            <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-mist text-teal">
+              <PhShieldCheck size={24} />
+            </div>
+            <p className="font-semibold text-ink">No communication logs recorded</p>
+            <p className="text-xs text-slate">Patient SMS confirmations, queue notifications, and staff dispatches will appear here in real time.</p>
+          </Card>
+        ) : (
+          filtered.map((item) => (
           <Card
             key={item.id}
             variant="card"
@@ -244,7 +253,8 @@ export const NotificationsActivityView: React.FC = () => {
               </div>
             </div>
           </Card>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Modal: Dispatch Operational Notice */}

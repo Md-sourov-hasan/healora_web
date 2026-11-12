@@ -82,7 +82,7 @@ export const EncounterMonitoringView: React.FC = () => {
             {t.navEncounters}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub.name} • {language === 'bn'
+            {currentHub?.name || 'Healora Hub'} • {language === 'bn'
               ? 'মোবাইল অ্যাপে রেকর্ডকৃত পরিমাপের সমাপ্তি হার, সেন্ট্রাল সিঙ্ক স্বীকৃতি ও ডাক্তার রিভিউ স্থিতি'
               : 'Operational status, mobile capture completeness, idempotency keys & central backend sync states'}
           </p>
@@ -192,7 +192,18 @@ export const EncounterMonitoringView: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-line text-sm">
-            {filtered.map((enc) => (
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-5 py-12 text-center text-slate">
+                  <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-mist text-teal">
+                    <PhShieldCheck size={24} />
+                  </div>
+                  <p className="font-semibold text-ink">No encounters recorded</p>
+                  <p className="text-xs text-slate">Encounters initiated by field health workers and reception staff will be tracked here in real time.</p>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((enc) => (
               <tr key={enc.id} className="transition-colors hover:bg-mist/30">
                 <td className="px-5 py-4">
                   <div className="font-mono text-xs font-bold text-teal">{enc.encounterCode}</div>
@@ -255,7 +266,8 @@ export const EncounterMonitoringView: React.FC = () => {
                   </div>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </Card>

@@ -19,6 +19,7 @@ import {
   PhUserCircle,
 } from '../icons/PhosphorIcons';
 import { useApp } from '../../context/AppContext';
+import { ROLES_CONFIG } from '../../config/rolesConfig';
 import type { AppRoute } from '../../types';
 
 interface NavItem {
@@ -45,6 +46,8 @@ export const Sidebar: React.FC = () => {
     activeRole,
     exceptions,
     notifications,
+    canAccessRoute,
+    isReadOnlyRole,
   } = useApp();
 
   const activeExceptionCount = exceptions.filter((e) => e.status !== 'resolved').length;
@@ -116,9 +119,15 @@ export const Sidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Links Scrollable */}
+      {/* Navigation Links Scrollable (Role-Filtered) */}
       <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-3">
-        {navSections.map((section, sIdx) => (
+        {navSections
+          .map((section) => ({
+            ...section,
+            items: section.items.filter((item) => canAccessRoute(item.path)),
+          }))
+          .filter((section) => section.items.length > 0)
+          .map((section, sIdx) => (
           <div key={sIdx} className="mb-3">
             <div className="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-slate/70">
               {language === 'bn' ? section.titleBn : section.title}
@@ -182,10 +191,26 @@ export const Sidebar: React.FC = () => {
           <kbd className="rounded border border-line bg-paper px-1.5 py-0.5 text-[10px] text-slate">⌘K</kbd>
         </button>
 
-        {/* Current Active Role Indicator */}
-        <div className="mt-2.5 text-[10px] text-slate truncate">
-          <span>Scope: </span>
-          <span className="font-semibold uppercase text-ink">{activeRole.replace(/_/g, ' ')}</span>
+        {/* Current Active Role Indicator Card */}
+        <div className="mt-3 rounded-xl border border-line bg-bone/60 p-2.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="font-semibold text-slate">Active Role</span>
+            {isReadOnlyRole ? (
+              <span className="rounded bg-bad-bg px-1.5 py-0.5 text-[10px] font-bold text-bad-fg">
+                READ-ONLY
+              </span>
+            ) : (
+              <span className="rounded bg-sage-200 px-1.5 py-0.5 text-[10px] font-bold text-pine uppercase">
+                {ROLES_CONFIG[activeRole]?.scope || 'HUB'}
+              </span>
+            )}
+          </div>
+          <div className="mt-1 text-xs font-bold text-ink truncate">
+            {language === 'bn' ? ROLES_CONFIG[activeRole]?.titleBn : ROLES_CONFIG[activeRole]?.title}
+          </div>
+          <div className="text-[10px] text-slate truncate mt-0.5" title={ROLES_CONFIG[activeRole]?.description}>
+            {language === 'bn' ? ROLES_CONFIG[activeRole]?.descriptionBn : ROLES_CONFIG[activeRole]?.description}
+          </div>
         </div>
       </div>
     </aside>
