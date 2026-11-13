@@ -22,6 +22,7 @@ export interface ApiRegion {
   riskTier?: 'low' | 'moderate' | 'high' | 'critical';
   catchmentPopulation?: number;
   assignedHubCount?: number;
+  activeHubCount?: number;
   children?: ApiRegion[];
 }
 
@@ -66,7 +67,7 @@ export const regionsService = {
   /**
    * Create new administrative/operational region
    */
-  async createRegion(data: Partial<ApiRegion>): Promise<ApiRegion> {
+  async createRegion(data: { code: string; name: string; nameBn?: string; level: ApiRegion['level']; parentId?: string }): Promise<ApiRegion> {
     return apiRequest<ApiRegion>('/regions', {
       method: 'POST',
       json: data,
@@ -76,7 +77,7 @@ export const regionsService = {
   /**
    * Update region details
    */
-  async updateRegion(id: string, data: Partial<ApiRegion>): Promise<ApiRegion> {
+  async updateRegion(id: string, data: Partial<Pick<ApiRegion, 'name' | 'nameBn' | 'level' | 'parentId'>>): Promise<ApiRegion> {
     return apiRequest<ApiRegion>(`/regions/${id}`, {
       method: 'PATCH',
       json: data,

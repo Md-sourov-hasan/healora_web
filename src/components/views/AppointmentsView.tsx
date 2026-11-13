@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   PhMagnifyingGlass,
   PhCheckCircle,
@@ -8,7 +8,11 @@ import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
+import { WalkInSessionCapacity, describeWalkInError } from './WalkInSessionCapacity';
 import { useApp } from '../../context/useApp';
+import { patientsService, type ApiPatient } from '../../services/patientsService';
+import { sessionsService, type SessionSlot } from '../../services/sessionsService';
+import { formatApiTime } from '../../services/apiMappers';
 
 export const AppointmentsView: React.FC = () => {
   const {
@@ -16,10 +20,12 @@ export const AppointmentsView: React.FC = () => {
     language,
     appointments,
     selectedHubId,
+    sessions,
     checkInAppointment,
     markAppointmentNoShow,
     createAppointment,
     registerWalkIn,
+    showToast,
   } = useApp();
 
   const [filterSearch, setFilterSearch] = useState('');
@@ -27,19 +33,39 @@ export const AppointmentsView: React.FC = () => {
   const [isBookApptOpen, setIsBookApptOpen] = useState(false);
 
   // Book Appt Form states
-  const [bookName, setBookName] = useState('');
-  const [bookPhone, setBookPhone] = useState('');
-  const [bookSlot, setBookSlot] = useState('11:00 AM');
-  const [bookService, setBookService] = useState('Basic Vitals & Screening');
+  const [bookSessionId, setBookSessionId] = useState('');
+  const [patientLookup, setPatientLookup] = useState('');
+  const [patientMatches, setPatientMatches] = useState<ApiPatient[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [availableSlots, setAvailableSlots] = useState<SessionSlot[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState('');
 
   // Walk-in form states
   const [walkInName, setWalkInName] = useState('');
   const [walkInPhone, setWalkInPhone] = useState('');
-  const [walkInAge, setWalkInAge] = useState(52);
-  const [walkInGender, setWalkInGender] = useState<'Female' | 'Male'>('Female');
-  const [walkInService, setWalkInService] = useState('Basic Vitals & Cardio Followup');
+  const [walkInAge, setWalkInAge] = useState('');
+  const [walkInGender, setWalkInGender] = useState<'Female' | 'Male' | 'Other' | 'Unknown'>('Unknown');
+  const [walkInSessionId, setWalkInSessionId] = useState('');
+  const [issuingWalkIn, setIssuingWalkIn] = useState(false);
+  const [walkInError, setWalkInError] = useState('');
+  const [issuedWalkInToken, setIssuedWalkInToken] = useState<string | null>(null);
+  const [registeredWalkIn, setRegisteredWalkIn] = useState<{ key: string; id: string } | null>(null);
 
   const hubAppointments = appointments.filter((a) => a.hubId === selectedHubId);
+  const bookableSessions = sessions.filter((session) => session.hubId === selectedHubId && ['published', 'open_for_booking', 'in_progress'].includes(session.status));
+  const activeSessions = sessions.filter((session) => session.hubId === selectedHubId && session.status === 'in_progress');
+
+  useEffect(() => {
+    let active = true;
+    if (!bookSessionId) { setAvailableSlots([]); setSelectedSlotId(''); return; }
+    sessionsService.getSlots(bookSessionId).then((rows) => {
+      if (active) { setAvailableSlots(rows.filter((slot) => slot.status === 'available')); setSelectedSlotId(''); }
+    }).catch((error) => {
+      if (active) { setAvailableSlots([]); setSelectedSlotId(''); }
+      showToast(error instanceof Error ? error.message : 'Could not load session slots.');
+    });
+    return () => { active = false; };
+  }, [bookSessionId]);
 
   const filtered = hubAppointments.filter(
     (a) =>
@@ -50,22 +76,49 @@ export const AppointmentsView: React.FC = () => {
       (a.queueToken && a.queueToken.toLowerCase().includes(filterSearch.toLowerCase()))
   );
 
-  const handleWalkInSubmit = (e: React.FormEvent) => {
+  const handleWalkInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!walkInName.trim()) return;
-    registerWalkIn(
+    if (!walkInName.trim() || issuingWalkIn) return;
+    const identityKey = JSON.stringify([walkInName.trim(), walkInPhone.trim(), walkInAge, walkInGender]);
+    setIssuingWalkIn(true);
+    setWalkInError('');
+    try {
+    const ok = await registerWalkIn(
       {
+        id: registeredWalkIn?.key === identityKey ? registeredWalkIn.id : undefined,
         fullName: walkInName,
-        fullNameBn: walkInName,
-        phone: walkInPhone || '+880 1711 000000',
-        age: Number(walkInAge),
+        phone: walkInPhone,
+        age: walkInAge ? Number(walkInAge) : undefined,
         gender: walkInGender,
       },
-      walkInService
+      walkInSessionId,
+      (id) => setRegisteredWalkIn({ key: identityKey, id })
     );
-    setWalkInName('');
-    setWalkInPhone('');
-    setIsWalkInOpen(false);
+    if (ok) {
+      setIssuedWalkInToken(ok);
+      setRegisteredWalkIn(null);
+      setWalkInName('');
+      setWalkInPhone('');
+      setIsWalkInOpen(false);
+    }
+    } catch (error) {
+      setWalkInError(describeWalkInError(error));
+    } finally {
+      setIssuingWalkIn(false);
+    }
+  };
+
+  const handlePatientLookup = async () => {
+    if (!selectedHubId || !patientLookup.trim()) return;
+    try {
+      const response = await patientsService.lookup({ by: 'phone', value: patientLookup.trim(), hubId: selectedHubId });
+      setPatientMatches(response.matches);
+      setSelectedPatientId('');
+      if (!response.matches.length) showToast('No patient matched this phone. Register the patient before booking.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Patient lookup failed.');
+      setPatientMatches([]);
+    }
   };
 
   return (
@@ -178,7 +231,7 @@ export const AppointmentsView: React.FC = () => {
                 {/* Patient Name & Phone */}
                 <td className="px-5 py-4">
                   <div className="text-[15px] font-semibold text-ink">
-                    {language === 'bn' ? apt.patientNameBn : apt.patientName}
+                    {language === 'bn' ? apt.patientNameBn || apt.patientName : apt.patientName}
                   </div>
                   <div className="tabular-nums text-xs text-slate">
                     {apt.patientPhone}
@@ -263,13 +316,21 @@ export const AppointmentsView: React.FC = () => {
       </Card>
 
       {/* Walk-in Registration Sheet */}
+      <ModalSheet isOpen={issuedWalkInToken !== null} onClose={() => setIssuedWalkInToken(null)} title="Walk-in token issued">
+        <p className="text-sm text-slate">Check-in completed. Queue token returned by the backend:</p>
+        <div className="my-6 text-center text-4xl font-bold text-pine">{issuedWalkInToken}</div>
+        <Button variant="primary" onClick={() => setIssuedWalkInToken(null)}>Done</Button>
+      </ModalSheet>
       <ModalSheet
         isOpen={isWalkInOpen}
-        onClose={() => setIsWalkInOpen(false)}
+        onClose={() => !issuingWalkIn && setIsWalkInOpen(false)}
         title={t.addWalkIn}
         subtitle="Assisted arrival registration & queue assignment without clinical pre-entry"
       >
         <form onSubmit={handleWalkInSubmit} className="flex flex-col gap-4">
+          {walkInError && <p role="alert" className="rounded-xl bg-bad-bg p-3 text-sm text-bad-fg">{walkInError}</p>}
+          {activeSessions.length === 0 && <p role="status" className="text-sm text-warn-fg">No session is in progress. Start an eligible session from Sessions &amp; Health Camps before registering a walk-in.</p>}
+          <label className="flex items-center gap-2 text-sm text-slate"><input type="checkbox" required /> I have confirmed this patient's identity.</label>
           <div>
             <label className="mb-1.5 block text-[13px] font-semibold text-slate">
               Full Name (রোগীর পূর্ণ নাম) *
@@ -306,7 +367,7 @@ export const AppointmentsView: React.FC = () => {
               <input
                 type="number"
                 value={walkInAge}
-                onChange={(e) => setWalkInAge(Number(e.target.value))}
+                onChange={(e) => setWalkInAge(e.target.value)}
                 className="h-12 w-full rounded-xl border border-line bg-paper px-3.5 font-ui text-[15px] text-ink outline-none focus:border-teal"
               />
             </div>
@@ -316,35 +377,29 @@ export const AppointmentsView: React.FC = () => {
               </label>
               <select
                 value={walkInGender}
-                onChange={(e) => setWalkInGender(e.target.value as 'Female' | 'Male')}
+                onChange={(e) => setWalkInGender(e.target.value as 'Female' | 'Male' | 'Other' | 'Unknown')}
                 className="h-12 w-full rounded-xl border border-line bg-paper px-3.5 font-ui text-[15px] text-ink outline-none focus:border-teal"
               >
-                <option value="Female">Female (মহিলা)</option>
+                <option value="Unknown">Unknown</option><option value="Other">Other</option><option value="Female">Female (মহিলা)</option>
                 <option value="Male">Male (পুরুষ)</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-slate">
-              Service Requested (প্রয়োজনীয় সেবা)
-            </label>
-            <select
-              value={walkInService}
-              onChange={(e) => setWalkInService(e.target.value)}
-              className="h-12 w-full rounded-xl border border-line bg-paper px-3.5 font-ui text-[15px] text-ink outline-none focus:border-teal"
-            >
-              <option value="Basic Vitals & Glucose Screening">Basic Vitals & Glucose Screening</option>
-              <option value="Cardio & Hypertension Check">Cardio & Hypertension Check</option>
-              <option value="Maternal Vitals Assessment">Maternal Vitals Assessment</option>
+            <label className="mb-1.5 block text-[13px] font-semibold text-slate">Active session *</label>
+            <select required value={walkInSessionId} onChange={(e) => setWalkInSessionId(e.target.value)} className="h-12 w-full rounded-xl border border-line bg-paper px-3.5 font-ui text-[15px] text-ink">
+              <option value="">Choose an in-progress session</option>
+              {activeSessions.map((session) => <option key={session.id} value={session.id}>{session.title} — {session.date}</option>)}
             </select>
           </div>
 
+          <WalkInSessionCapacity sessionId={isWalkInOpen ? walkInSessionId : ''} />
           <div className="mt-4 flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setIsWalkInOpen(false)}>
+            <Button variant="secondary" disabled={issuingWalkIn} onClick={() => setIsWalkInOpen(false)}>
               {t.cancel}
             </Button>
-            <Button type="submit" variant="primary">
+            <Button type="submit" variant="primary" disabled={issuingWalkIn || !walkInSessionId}>
               Register &amp; Issue Ticket
             </Button>
           </div>
@@ -359,79 +414,58 @@ export const AppointmentsView: React.FC = () => {
         subtitle="Reserve dedicated time slot with automated capacity deduction"
       >
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            if (!bookName.trim()) return;
-            createAppointment({
-              patientName: bookName,
-              patientPhone: bookPhone || '+880 1711 000000',
-              slotTime: bookSlot,
-              serviceType: bookService,
-              bookingSource: 'patient_app',
+            const ok = await createAppointment({
+              sessionId: bookSessionId,
+              patientId: selectedPatientId,
+              slotId: selectedSlotId || undefined,
+              bookingSource: 'operations_assignment',
             });
-            setBookName('');
-            setBookPhone('');
-            setIsBookApptOpen(false);
+            if (ok) {
+              setPatientLookup('');
+              setPatientMatches([]);
+              setSelectedPatientId('');
+              setBookSessionId('');
+              setIsBookApptOpen(false);
+            }
           }}
           className="flex flex-col gap-4"
         >
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Patient Full Name *</label>
-            <input
-              type="text"
-              required
-              value={bookName}
-              onChange={(e) => setBookName(e.target.value)}
-              placeholder="e.g. Morshedul Alam"
-              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Contact Phone *</label>
-              <input
-                type="text"
-                required
-                value={bookPhone}
-                onChange={(e) => setBookPhone(e.target.value)}
-                placeholder="+880 1711..."
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Requested Slot</label>
-              <select
-                value={bookSlot}
-                onChange={(e) => setBookSlot(e.target.value)}
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              >
-                <option value="09:00 AM">09:00 AM - 09:15 AM</option>
-                <option value="09:30 AM">09:30 AM - 09:45 AM</option>
-                <option value="10:00 AM">10:00 AM - 10:15 AM</option>
-                <option value="10:30 AM">10:30 AM - 10:45 AM</option>
-                <option value="11:00 AM">11:00 AM - 11:15 AM</option>
-                <option value="11:30 AM">11:30 AM - 11:45 AM</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Service Category</label>
-            <select
-              value={bookService}
-              onChange={(e) => setBookService(e.target.value)}
-              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-            >
-              <option value="Basic Vitals & Screening">Basic Vitals & Screening (BP, SpO2, Pulse)</option>
-              <option value="Diabetes & Hypertension Review">Diabetes & Hypertension Review</option>
-              <option value="Cardiac & Tele-triage Consultation">Cardiac & Tele-triage Consultation</option>
+          <label className="flex flex-col gap-1 text-xs font-semibold text-slate">
+            Session *
+            <select required value={bookSessionId} onChange={(e) => setBookSessionId(e.target.value)} className="h-10 rounded-xl border border-line px-3 text-sm font-normal">
+              <option value="">Choose session</option>
+              {bookableSessions.map((session) => <option key={session.id} value={session.id}>{session.title} — {session.date}</option>)}
             </select>
+          </label>
+
+          <div className="flex gap-2">
+            <input type="tel" required value={patientLookup} onChange={(e) => setPatientLookup(e.target.value)} placeholder="Patient phone number" className="h-10 flex-1 rounded-xl border border-line px-3 text-sm" />
+            <Button type="button" variant="secondary" onClick={handlePatientLookup}>Look up</Button>
           </div>
+
+          {patientMatches.length > 0 && (
+            <label className="flex flex-col gap-1 text-xs font-semibold text-slate">
+              API patient record *
+              <select required value={selectedPatientId} onChange={(e) => setSelectedPatientId(e.target.value)} className="h-10 rounded-xl border border-line px-3 text-sm font-normal">
+                <option value="">Choose patient</option>
+                {patientMatches.map((patient) => <option key={patient.id} value={patient.id}>{patient.fullName} · {patient.healoraCode}</option>)}
+              </select>
+            </label>
+          )}
+
+          <label className="flex flex-col gap-1 text-xs font-semibold text-slate">
+            Available slot
+            <select value={selectedSlotId} onChange={(e) => setSelectedSlotId(e.target.value)} className="h-10 rounded-xl border border-line px-3 text-sm font-normal">
+              <option value="">No slot selected</option>
+              {availableSlots.map((slot) => <option key={slot.id} value={slot.id}>{formatApiTime(slot.startTime)} – {formatApiTime(slot.endTime)}</option>)}
+            </select>
+          </label>
 
           <div className="flex justify-end gap-2 pt-3">
             <Button variant="secondary" onClick={() => setIsBookApptOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Confirm Booking</Button>
+            <Button variant="primary" type="submit" disabled={!selectedPatientId || !bookSessionId}>Confirm Booking</Button>
           </div>
         </form>
       </ModalSheet>

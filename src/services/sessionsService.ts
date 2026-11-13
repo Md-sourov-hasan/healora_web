@@ -23,6 +23,10 @@ import { apiRequest } from './apiClient';
 export interface ApiSession {
   id: string;
   hubId: string;
+  serviceTypeId: string;
+  serviceTypeCode?: string;
+  teamLeadUserId?: string | null;
+  teamLeadName?: string | null;
   sessionType: 'standard_clinic' | 'special_camp' | 'outreach_event' | 'other';
   status:
     | 'draft'
@@ -35,16 +39,21 @@ export interface ApiSession {
     | 'cancelled';
   title?: string;
   titleBn?: string;
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
-  capacityTotal: number;
-  capacityBooked: number;
-  capacityWalkIn: number;
-  locationName?: string;
-  locationDetails?: string;
-  notes?: string;
-  readinessPassed?: boolean;
+  sessionDate: string;
+  startsAt: string;
+  endsAt: string;
+  appointmentCapacity: number;
+  walkInCapacity: number;
+  bookedCount: number;
+  walkInCount: number;
+  allowOverbooking?: boolean;
+  version: number;
+  hub?: { id: string; name: string; status: string };
+  venueAddress?: string | null;
+  operationalNotes?: string | null;
+  readiness?: { staffReady?: boolean; equipmentReady?: boolean };
+  healthWorkersCount?: number;
+  doctorsCount?: number;
 }
 
 export interface SessionListResponse {
@@ -65,6 +74,21 @@ export interface SessionSlot {
   blockedReason?: string | null;
 }
 
+export interface SessionReadinessIssue {
+  kind: 'hub' | 'availability' | 'staff_role' | 'station_type' | 'equipment_type' | 'equipment_item' | 'service_offering';
+  code: string;
+  required?: number;
+  available?: number;
+  detail: string;
+}
+
+export interface SessionReadiness {
+  sessionId: string;
+  ready: boolean;
+  unmet: SessionReadinessIssue[];
+  warnings: SessionReadinessIssue[];
+}
+
 export const sessionsService = {
   /**
    * List sessions filterable by hub, date range, and status
@@ -73,7 +97,7 @@ export const sessionsService = {
     hubId?: string;
     from?: string;
     to?: string;
-    status?: string | string[];
+    status?: string;
     sessionType?: string;
     limit?: number;
     offset?: number;
@@ -93,7 +117,12 @@ export const sessionsService = {
   /**
    * Create new session / health camp
    */
-  async createSession(data: Partial<ApiSession>): Promise<ApiSession> {
+  async createSession(data: {
+    hubId: string; serviceTypeId: string; title: string; titleBn?: string; sessionType: ApiSession['sessionType'];
+    sessionDate: string; startsAt: string; endsAt: string; venueAddress?: string;
+    appointmentCapacity: number; walkInCapacity: number; slotMinutes?: number;
+    teamLeadUserId?: string;
+  }): Promise<ApiSession> {
     return apiRequest<ApiSession>('/sessions', {
       method: 'POST',
       json: data,
@@ -103,7 +132,7 @@ export const sessionsService = {
   /**
    * Update session details
    */
-  async updateSession(id: string, data: Partial<ApiSession>): Promise<ApiSession> {
+  async updateSession(id: string, data: Partial<Omit<ApiSession, 'id' | 'hubId'>>): Promise<ApiSession> {
     return apiRequest<ApiSession>(`/sessions/${id}`, {
       method: 'PATCH',
       json: data,
@@ -113,18 +142,15 @@ export const sessionsService = {
   /**
    * Check session readiness checklist (staff, equipment, consent forms)
    */
-  async checkReadiness(id: string): Promise<{
-    ready: boolean;
-    checks: Array<{ code: string; label: string; passed: boolean; message?: string }>;
-  }> {
+  async checkReadiness(id: string): Promise<SessionReadiness> {
     return apiRequest(`/sessions/${id}/readiness`);
   },
 
   /**
    * Session state transitions
    */
-  async publish(id: string): Promise<ApiSession> {
-    return apiRequest<ApiSession>(`/sessions/${id}/publish`, { method: 'POST', json: {} });
+  async publish(id: string, overrideReason?: string): Promise<ApiSession> {
+    return apiRequest<ApiSession>(`/sessions/${id}/publish`, { method: 'POST', json: { overrideReason } });
   },
 
   async openBooking(id: string): Promise<ApiSession> {
@@ -135,12 +161,12 @@ export const sessionsService = {
     return apiRequest<ApiSession>(`/sessions/${id}/start`, { method: 'POST', json: {} });
   },
 
-  async pause(id: string, reason?: string): Promise<ApiSession> {
+  async pause(id: string, reason: string): Promise<ApiSession> {
     return apiRequest<ApiSession>(`/sessions/${id}/pause`, { method: 'POST', json: { reason } });
   },
 
-  async resume(id: string): Promise<ApiSession> {
-    return apiRequest<ApiSession>(`/sessions/${id}/resume`, { method: 'POST', json: {} });
+  async resume(id: string, reason?: string): Promise<ApiSession> {
+    return apiRequest<ApiSession>(`/sessions/${id}/resume`, { method: 'POST', json: { reason } });
   },
 
   async complete(id: string): Promise<ApiSession> {
@@ -154,7 +180,7 @@ export const sessionsService = {
   /**
    * Adjust session capacity
    */
-  async updateCapacity(id: string, capacity: { total: number; walkIn: number }): Promise<ApiSession> {
+  async updateCapacity(id: string, capacity: { appointmentCapacity?: number; walkInCapacity?: number; expectedVersion: number; reason: string }): Promise<ApiSession> {
     return apiRequest<ApiSession>(`/sessions/${id}/capacity`, { method: 'POST', json: capacity });
   },
 
@@ -170,7 +196,7 @@ export const sessionsService = {
    */
   async generateSlots(
     sessionId: string,
-    data: { slotDurationMinutes: number; capacityPerSlot: number }
+    data: { perSlotCapacity?: number }
   ): Promise<SessionSlot[]> {
     return apiRequest<SessionSlot[]>(`/sessions/${sessionId}/slots/generate`, {
       method: 'POST',

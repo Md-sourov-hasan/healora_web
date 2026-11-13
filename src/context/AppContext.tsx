@@ -22,22 +22,6 @@ import type {
   AppNotification,
   OperationalException,
 } from '../types';
-import {
-  initialHubs,
-  initialSessions,
-  initialPatients,
-  initialAppointments,
-  initialQueueItems,
-  initialStations,
-  initialEquipment,
-  initialStaff,
-  initialEncounters,
-  initialAuditLogs,
-  initialRegions,
-  initialCatchments,
-  initialNotifications,
-  initialExceptions,
-} from '../mockData/mockDatabase';
 import { translations, type TranslationDict } from '../i18n/translations';
 import {
   authService,
@@ -51,9 +35,11 @@ import { appointmentsService } from '../services/appointmentsService';
 import { queueService } from '../services/queueService';
 import { stationsEquipmentService } from '../services/stationsEquipmentService';
 import { encountersExceptionsService } from '../services/encountersExceptionsService';
-import { reportsAuditService } from '../services/reportsAuditService';
+import { reportsAuditService, type DashboardOverviewResponse } from '../services/reportsAuditService';
 import { staffService, type ApiRoleAssignment } from '../services/staffService';
-import { CORE_OPERATIONS_ROLES, isRouteAllowedForRole, ROLES_CONFIG } from '../config/rolesConfig';
+import { catalogService, type ApiServiceType } from '../services/catalogService';
+import { patientsService } from '../services/patientsService';
+import { CORE_OPERATIONS_ROLES, isRouteAllowedForRole, ROLES_CONFIG, toApiRole, toUiRole } from '../config/rolesConfig';
 import { ApiError, getStoredAccessToken, refreshAuthToken } from '../services/apiClient';
 import {
   mapApiHubToHub,
@@ -66,6 +52,9 @@ import {
   mapApiNotificationToNotification,
   mapApiExceptionToException,
   mapApiAuditEventToAuditEvent,
+  mapApiCatchmentToCatchment,
+  mapApiEncounterToEncounter,
+  formatApiTime,
 } from '../services/apiMappers';
 
 export function normalizeRoute(path: string): AppRoute {
@@ -120,7 +109,7 @@ export function normalizeRoute(path: string): AppRoute {
   }
 }
 
-export type ApiConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'demo';
+export type ApiConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 
 export interface AppContextType {
   language: Language;
@@ -161,14 +150,15 @@ export interface AppContextType {
   currentUser: MeResponse['user'] | null;
   apiStatus: ApiConnectionStatus;
   apiLatency: number | null;
+  apiErrors: string[];
+  dashboardOverview: DashboardOverviewResponse | null;
+  serviceTypes: ApiServiceType[];
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   mfaChallenge: { challengeId: string; expiresIn: number } | null;
   passwordChangeRequired: boolean;
   mfaEnrollmentRequired: boolean;
   mfaEnrollmentUri: string | null;
-  syncWithBackend: boolean;
-  setSyncWithBackend: (sync: boolean) => void;
   loginWithCredentials: (email: string, pass: string) => Promise<StaffLoginResponse>;
   verifyMfaCode: (code: string) => Promise<'password' | 'enroll' | 'complete'>;
   changeStaffPassword: (curr: string, newPass: string) => Promise<void>;
@@ -177,34 +167,42 @@ export interface AppContextType {
   logoutUser: () => Promise<void>;
   refreshBackendData: () => Promise<void>;
   // Operational Actions
-  checkInAppointment: (appointmentId: string) => void;
-  callNextPatient: (stationId: string) => void;
-  advanceQueueStatus: (queueId: string, nextStatus: QueueState) => void;
-  transferStation: (queueId: string, newStationId: string) => void;
-  registerWalkIn: (patient: Partial<Patient>, serviceType: string) => void;
-  createSession: (session: Partial<HubSession>) => boolean;
-  cancelSession: (sessionId: string, reason: string) => void;
-  createAppointment: (apt: Partial<HubAppointment>) => void;
-  markAppointmentNoShow: (appointmentId: string) => void;
-  toggleStationStatus: (stationId: string, newStatus: StationStatus) => void;
-  toggleEquipmentStatus: (eqId: string, newStatus: EquipmentStatus) => void;
-  retrySyncEncounter: (encounterId: string) => void;
-  reassignEncounter: (encounterId: string, newWorker: string) => void;
-  resolveException: (exceptionId: string, notes?: string) => void;
-  acknowledgeNotification: (id: string) => void;
-  dismissNotification: (id: string) => void;
-  addHub: (hub: Partial<Hub>) => void;
-  updateHubStatus: (hubId: string, status: HubStatus) => void;
-  addRegion: (region: Partial<Region>) => void;
-  addCatchment: (catchment: Partial<CatchmentArea>) => void;
-  addStaffMember: (member: Partial<StaffMember>) => void;
-  addStation: (station: Partial<HubStation>) => void;
-  addEquipment: (eq: Partial<HubEquipment>) => void;
+  checkInAppointment: (appointmentId: string) => Promise<void>;
+  callNextPatient: (stationId: string) => Promise<void>;
+  advanceQueueStatus: (queueId: string, nextStatus: QueueState) => Promise<void>;
+  transferStation: (queueId: string, newStationId: string) => Promise<void>;
+  registerWalkIn: (patient: Partial<Patient>, sessionId: string, onPatientRegistered?: (id: string) => void) => Promise<string | null>;
+  createSession: (session: Partial<HubSession>) => Promise<boolean>;
+  publishSession: (sessionId: string, overrideReason?: string) => Promise<void>;
+  openBookingSession: (sessionId: string) => Promise<void>;
+  startSession: (sessionId: string) => Promise<void>;
+  completeSession: (sessionId: string) => Promise<void>;
+  cancelSession: (sessionId: string, reason: string) => Promise<boolean>;
+  createAppointment: (apt: Partial<HubAppointment>) => Promise<boolean>;
+  markAppointmentNoShow: (appointmentId: string) => Promise<void>;
+  toggleStationStatus: (stationId: string, newStatus: StationStatus, reason?: string) => Promise<void>;
+  toggleEquipmentStatus: (eqId: string, newStatus: EquipmentStatus, reason?: string) => Promise<void>;
+  recordEquipmentService: (eqId: string, data: { kind: 'inspection' | 'calibration' | 'maintenance'; notes: string; serviceProvider?: string; nextDueOn?: string }) => Promise<boolean>;
+  reassignEncounter: (encounterId: string, userId: string, role: 'special_team_lead' | 'field_health_worker' | 'local_doctor' | 'registered_doctor') => Promise<void>;
+  resolveException: (exceptionId: string, notes?: string) => Promise<void>;
+  acknowledgeException: (exceptionId: string) => Promise<void>;
+  escalateException: (exceptionId: string, to: 'regional_operations' | 'clinical_operations', note: string) => Promise<void>;
+  dismissException: (exceptionId: string, reason: string) => Promise<void>;
+  acknowledgeNotification: (id: string) => Promise<void>;
+  dismissNotification: (id: string) => Promise<void>;
+  addHub: (hub: Partial<Hub>) => Promise<boolean>;
+  updateHubProfile: (hubId: string, data: Partial<Hub>) => Promise<boolean>;
+  updateHubStatus: (hubId: string, status: HubStatus, reason?: string) => Promise<void>;
+  addRegion: (region: Partial<Region> & { parentId?: string }) => Promise<boolean>;
+  addCatchment: (catchment: Partial<CatchmentArea>) => Promise<boolean>;
+  addStaffMember: (member: Partial<StaffMember>) => Promise<{ userId: string; temporaryPassword: string; activated: boolean } | null>;
+  addStation: (station: Partial<HubStation>) => Promise<boolean>;
+  addEquipment: (eq: Partial<HubEquipment>) => Promise<boolean>;
   // Role & Permissions Integration
   isReadOnlyRole: boolean;
   canAccessRoute: (route: AppRoute) => boolean;
   roleAssignments: ApiRoleAssignment[];
-  assignStaffRole: (userId: string, data: { role: string; scopeType: string; hubId?: string; regionId?: string }) => Promise<void>;
+  assignStaffRole: (userId: string, data: { role: string; scopeType: 'platform' | 'region' | 'hub' | 'session'; hubId?: string; regionId?: string; sessionId?: string }) => Promise<void>;
   revokeStaffRole: (roleAssignmentId: string, reason?: string) => Promise<void>;
 }
 
@@ -215,7 +213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [simpleMode, setSimpleMode] = useState<boolean>(false);
   const [activeRole, setActiveRole] = useState<UserRole>('hub_manager');
   const [availableRoles, setAvailableRoles] = useState<UserRole[]>([]);
-  const [selectedHubId, setSelectedHubId] = useState<string>('hub_dhaka_01');
+  const [selectedHubId, setSelectedHubId] = useState<string>('');
   const [activeView, setActiveViewState] = useState<AppRoute>(() =>
     typeof window !== 'undefined' ? normalizeRoute(window.location.pathname) : '/dashboard'
   );
@@ -223,33 +221,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Core Data States (Initialized with rich local defaults, augmented via API)
-  const [hubs, setHubs] = useState<Hub[]>(initialHubs);
-  const [regions, setRegions] = useState<Region[]>(initialRegions);
-  const [catchments, setCatchments] = useState<CatchmentArea[]>(initialCatchments);
-  const [sessions, setSessions] = useState<HubSession[]>(initialSessions);
-  const [appointments, setAppointments] = useState<HubAppointment[]>(initialAppointments);
-  const [queue, setQueue] = useState<QueueItem[]>(initialQueueItems);
-  const [patients, setPatients] = useState<Patient[]>(initialPatients);
-  const [stations, setStations] = useState<HubStation[]>(initialStations);
-  const [equipment, setEquipment] = useState<HubEquipment[]>(initialEquipment);
-  const [staff, setStaff] = useState<StaffMember[]>(initialStaff);
-  const [encounters, setEncounters] = useState<Encounter[]>(initialEncounters);
-  const [auditLogs, setAuditLogs] = useState<AuditEvent[]>(initialAuditLogs);
-  const [notifications, setNotifications] = useState<AppNotification[]>(initialNotifications);
-  const [exceptions, setExceptions] = useState<OperationalException[]>(initialExceptions);
+  // Operational data is populated only by authenticated API responses.
+  const [hubs, setHubs] = useState<Hub[]>([]);
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [catchments, setCatchments] = useState<CatchmentArea[]>([]);
+  const [sessions, setSessions] = useState<HubSession[]>([]);
+  const [appointments, setAppointments] = useState<HubAppointment[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [stations, setStations] = useState<HubStation[]>([]);
+  const [equipment, setEquipment] = useState<HubEquipment[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [encounters, setEncounters] = useState<Encounter[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditEvent[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [exceptions, setExceptions] = useState<OperationalException[]>([]);
 
   // Authentication & API Integration States
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<MeResponse['user'] | null>(null);
   const [apiStatus, setApiStatus] = useState<ApiConnectionStatus>('connecting');
   const [apiLatency, setApiLatency] = useState<number | null>(null);
+  const [apiErrors, setApiErrors] = useState<string[]>([]);
+  const [dashboardOverview, setDashboardOverview] = useState<DashboardOverviewResponse | null>(null);
+  const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([]);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [mfaChallenge, setMfaChallenge] = useState<{ challengeId: string; expiresIn: number } | null>(null);
   const [passwordChangeRequired, setPasswordChangeRequired] = useState<boolean>(false);
   const [mfaEnrollmentRequired, setMfaEnrollmentRequired] = useState(false);
   const [mfaEnrollmentUri, setMfaEnrollmentUri] = useState<string | null>(null);
-  const [syncWithBackend, setSyncWithBackend] = useState<boolean>(true);
   const [roleAssignments, setRoleAssignments] = useState<ApiRoleAssignment[]>([]);
 
   const t = translations[language];
@@ -323,41 +323,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 4500);
   };
 
-  const addAuditLog = (
-    action: string,
-    entityType: AuditEvent['entityType'],
-    entityId: string,
-    details: string,
-    outcome: AuditEvent['outcome'] = 'success'
-  ) => {
-    const activeHub = hubs.find((h) => h.id === selectedHubId)?.name || 'Central Platform';
-    const newLog: AuditEvent = {
-      id: `aud_${Date.now()}`,
-      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      actorName: currentUser?.name || (
-        activeRole === 'hub_manager'
-          ? 'Kamrul Hassan (Hub Mgr)'
-          : activeRole === 'reception_officer'
-          ? 'Anisur Rahman (Reception)'
-          : activeRole === 'local_doctor'
-          ? 'Dr. Arjun Mehta (Doctor)'
-          : activeRole === 'field_health_worker'
-          ? 'Nasrin Sultana (HW)'
-          : activeRole === 'regional_ops_manager'
-          ? 'Tariqul Islam (Regional Ops)'
-          : 'System Administrator'
-      ),
-      actorRole: activeRole,
-      action,
-      entityType,
-      entityId,
-      hubName: activeHub,
-      details,
-      outcome,
-    };
-    setAuditLogs((prev) => [newLog, ...prev]);
-  };
-
   const handleSetActiveRole = (newRole: UserRole) => {
     if (!isAuthenticated || !availableRoles.includes(newRole)) {
       showToast('This role is not assigned to your account.');
@@ -366,7 +331,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveRole(newRole);
     const cfg = ROLES_CONFIG[newRole];
     const roleName = cfg?.title || newRole;
-    addAuditLog('Role Scope Switch', 'Security', `role_${newRole}`, `Active operational role switched to ${roleName}`);
     showToast(`Role scope set to: ${roleName}`);
     if (!isRouteAllowedForRole(activeView, newRole)) {
       setActiveViewState('/dashboard');
@@ -378,13 +342,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const assignStaffRole = async (
     userId: string,
-    data: { role: string; scopeType: string; hubId?: string; regionId?: string }
+    data: { role: string; scopeType: 'platform' | 'region' | 'hub' | 'session'; hubId?: string; regionId?: string; sessionId?: string }
   ) => {
     try {
-      const newAssignment = await staffService.assignRole(userId, data);
+      const newAssignment = await staffService.assignRole(userId, { ...data, role: toApiRole(data.role) });
       setRoleAssignments((prev) => [newAssignment, ...prev]);
-      addAuditLog('Assign Staff Role', 'Security', `user_${userId}`, `Assigned role ${data.role} with ${data.scopeType} scope.`);
       showToast(`Role ${data.role} successfully assigned to staff.`);
+      await refreshBackendData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'API error assigning role';
       const code = err instanceof ApiError ? ` (${err.code})` : '';
@@ -395,17 +359,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const revokeStaffRole = async (roleAssignmentId: string, reason?: string) => {
     try {
-      await staffService.revokeRole(roleAssignmentId, reason);
+      if (!reason?.trim()) throw new Error('A reason of at least 3 characters is required to revoke a role.');
+      await staffService.revokeRole(roleAssignmentId, reason.trim());
       setRoleAssignments((prev) =>
         prev.map((r) => (r.id === roleAssignmentId ? { ...r, status: 'revoked' as const } : r))
       );
-      addAuditLog(
-        'Revoke Staff Role',
-        'Security',
-        `assignment_${roleAssignmentId}`,
-        `Revoked role assignment. Reason: ${reason || 'Administrative action'}`
-      );
       showToast('Staff role assignment revoked.');
+      await refreshBackendData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'API error revoking role';
       showToast(`Failed to revoke role: ${msg}`);
@@ -413,75 +373,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  /**
-   * Re-fetch and synchronize live data from the Render backend API
-   */
+  /** Fetch all screen data from the authenticated backend. Failed requests clear that dataset. */
   const refreshBackendData = useCallback(async () => {
-    if (!syncWithBackend || !isAuthenticated) return;
-    try {
-      // 1. Fetch Hubs
-      const hubRes = await hubsService.getHubs({ limit: 50 }).catch(() => null);
-      if (hubRes?.items?.length) {
-        setHubs(hubRes.items.map(mapApiHubToHub));
+    if (!getStoredAccessToken()) return;
+    setApiStatus('connecting');
+    const errors: string[] = [];
+    const load = async <T,>(name: string, request: Promise<T>, accept: (data: T) => void, clear: () => void) => {
+      try { accept(await request); }
+      catch (error) {
+        clear();
+        const detail = error instanceof ApiError ? `${error.code}: ${error.message}` : error instanceof Error ? error.message : 'Request failed';
+        errors.push(`${name}: ${detail}`);
       }
+    };
 
-      // 2. Fetch Regions
-      const regionRes = await regionsService.getRegions({ limit: 50 }).catch(() => null);
-      if (regionRes?.items?.length) {
-        setRegions(regionRes.items.map(mapApiRegionToRegion));
-      }
+    let hubRows: Awaited<ReturnType<typeof hubsService.getHubs>>['items'] = [];
+    await Promise.all([
+      load('Hubs', hubsService.getHubs({ limit: 200 }), (r) => { hubRows = r.items; setHubs(r.items.map(mapApiHubToHub)); }, () => setHubs([])),
+      load('Regions', regionsService.getRegions({ limit: 200 }), (r) => setRegions(r.items.map(mapApiRegionToRegion)), () => setRegions([])),
+    ]);
+    const hubId = selectedHubId || hubRows[0]?.id || '';
+    if (!selectedHubId && hubId) setSelectedHubId(hubId);
+    const hubNames = new Map(hubRows.map((h) => [h.id, h.name]));
 
-      // 3. Fetch Sessions
-      const sessionRes = await sessionsService.getSessions({ limit: 50 }).catch(() => null);
-      if (sessionRes?.items?.length) {
-        setSessions(sessionRes.items.map((s) => mapApiSessionToSession(s)));
-      }
-
-      // 4. Fetch Appointments
-      const aptRes = await appointmentsService.getAppointments({ limit: 50 }).catch(() => null);
-      if (aptRes?.items?.length) {
-        setAppointments(aptRes.items.map(mapApiAppointmentToAppointment));
-      }
-
-      // 5. Fetch Stations
-      const stationRes = await stationsEquipmentService.getStations(selectedHubId).catch(() => null);
-      if (stationRes && Array.isArray(stationRes) && stationRes.length > 0) {
-        setStations(stationRes.map(mapApiStationToStation));
-      }
-
-      // 6. Fetch Equipment
-      const eqRes = await stationsEquipmentService.getEquipment({ limit: 50 }).catch(() => null);
-      if (eqRes?.items?.length) {
-        setEquipment(eqRes.items.map(mapApiEquipmentToEquipment));
-      }
-
-      // 7. Fetch Operational Exceptions
-      const excRes = await encountersExceptionsService.getExceptions({ limit: 50 }).catch(() => null);
-      if (excRes?.items?.length) {
-        setExceptions(excRes.items.map(mapApiExceptionToException));
-      }
-
-      // 8. Fetch Notifications
-      const notifRes = await reportsAuditService.getNotifications({ limit: 30 }).catch(() => null);
-      if (notifRes?.items?.length) {
-        setNotifications(notifRes.items.map(mapApiNotificationToNotification));
-      }
-
-      // 9. Fetch Audit Events
-      const audRes = await reportsAuditService.getAuditEvents({ limit: 50 }).catch(() => null);
-      if (audRes?.items?.length) {
-        setAuditLogs(audRes.items.map(mapApiAuditEventToAuditEvent));
-      }
-
-      // 10. Fetch Role Assignments via API
-      const rolesRes = await staffService.getRoleAssignments().catch(() => null);
-      if (rolesRes && Array.isArray(rolesRes)) {
-        setRoleAssignments(rolesRes);
-      }
-    } catch {
-      // If network calls fail, graceful local fallback remains
+    let sessionRows: Awaited<ReturnType<typeof sessionsService.getSessions>>['items'] = [];
+    await load('Service catalogue', catalogService.getServiceTypes(), (r) => setServiceTypes(r.items), () => setServiceTypes([]));
+    if (!hubId) {
+      setCatchments([]); setSessions([]); setAppointments([]); setQueue([]); setStations([]); setEquipment([]);
+      setStaff([]); setEncounters([]); setExceptions([]); setDashboardOverview(null);
+    } else {
+      await Promise.all([
+        load('Sessions', sessionsService.getSessions({ hubId, limit: 200 }), (r) => { sessionRows = r.items; setSessions(r.items.map((s) => mapApiSessionToSession(s, hubNames.get(s.hubId) ?? ''))); }, () => setSessions([])),
+        load('Appointments', appointmentsService.getAppointments({ hubId, limit: 200 }), (r) => setAppointments(r.items.map((a) => mapApiAppointmentToAppointment(a, hubNames.get(a.hubId) ?? ''))), () => setAppointments([])),
+        load('Catchments', hubsService.getCatchments(hubId), (r) => setCatchments(r.items.map((x) => mapApiCatchmentToCatchment({ ...x, hubId }))), () => setCatchments([])),
+        load('Stations', stationsEquipmentService.getStations(hubId), (r) => setStations(r.map(mapApiStationToStation)), () => setStations([])),
+        load('Equipment', stationsEquipmentService.getEquipment({ hubId, limit: 200 }), (r) => setEquipment(r.items.map(mapApiEquipmentToEquipment)), () => setEquipment([])),
+        load('Exceptions', encountersExceptionsService.getExceptions({ hubId, limit: 200 }), (r) => setExceptions(r.items.map((x) => mapApiExceptionToException(x, hubNames.get(x.hubId) ?? ''))), () => setExceptions([])),
+        load('Dashboard', reportsAuditService.getDashboardOverview({ hubId }), setDashboardOverview, () => setDashboardOverview(null)),
+      ]);
     }
-  }, [isAuthenticated, selectedHubId, syncWithBackend]);
+
+    await Promise.all([
+      load('Notifications', reportsAuditService.getNotifications({ limit: 100 }), (r) => setNotifications(r.map(mapApiNotificationToNotification)), () => setNotifications([])),
+      load('Audit events', reportsAuditService.getAuditEvents({ limit: 100 }), (r) => setAuditLogs(r.map((x) => mapApiAuditEventToAuditEvent(x))), () => setAuditLogs([])),
+      load('Role assignments', staffService.getRoleAssignments({ limit: 200 }), (r) => setRoleAssignments(r.items), () => undefined),
+    ]);
+
+    if (hubId) {
+      const roster = await hubsService.getStaff(hubId).catch((error) => { errors.push(`Staff roster: ${error instanceof Error ? error.message : 'Request failed'}`); return null; });
+      if (roster) {
+        const shifts = await staffService.getShifts({ hubId }).then((r) => r.items).catch((error) => { errors.push(`Staff shifts: ${error instanceof Error ? error.message : 'Request failed'}`); return []; });
+        setStaff(roster.items.map((assignment) => {
+          const user = assignment.user;
+          const shift = shifts.find((s) => s.userId === user.id && s.role === assignment.role);
+          return {
+            id: user.id, fullName: user.name, fullNameBn: user.nameBn ?? '', role: toUiRole(assignment.role) ?? assignment.role as UserRole,
+            roleTitle: assignment.role, roleTitleBn: assignment.role, phone: user.phone ?? '', active: user.status === 'active',
+            assignedHubIds: [hubId],
+            activeShift: shift ? `${formatApiTime(shift.startsAt)}–${formatApiTime(shift.endsAt)} (${shift.status})` : '',
+          };
+        }));
+      } else setStaff([]);
+
+      const liveSessions = sessionRows.map((s) => mapApiSessionToSession(s, hubNames.get(s.hubId) ?? '')).filter((s) => s.status === 'in_progress');
+      const queues: QueueItem[] = [];
+      const operationalEncounters: Encounter[] = [];
+      for (const session of liveSessions) {
+        await Promise.all([
+          load(`Queue ${session.title}`, queueService.getQueue(session.id), (r) => queues.push(...r.items.map((t) => mapApiQueueTicketToQueueItem(t, session.hubId, session.id, session.serviceType))), () => undefined),
+          load(`Encounters ${session.title}`, encountersExceptionsService.getSessionEncounters(session.id), (r) => operationalEncounters.push(...r.items.map((e) => mapApiEncounterToEncounter(e, session.hubId, hubNames.get(session.hubId) ?? ''))), () => undefined),
+        ]);
+      }
+      setQueue(queues);
+      setEncounters(operationalEncounters);
+    }
+
+    setApiErrors(errors);
+    if (errors.length === 0) {
+      setApiStatus('connected');
+    } else {
+      try {
+        const health = await authService.checkHealth();
+        setApiStatus(health.database ? 'connected' : 'disconnected');
+      } catch {
+        setApiStatus('disconnected');
+      }
+    }
+  }, [selectedHubId]);
 
   const loadSignedInProfile = useCallback(async () => {
     const me = await authService.getMe();
@@ -489,8 +467,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const assignedRoles = [...new Set(
       (me.assignments || [])
         .filter((assignment) => !assignment.status || assignment.status === 'active')
-        .map((assignment) => assignment.role)
-        .filter((role): role is UserRole => CORE_OPERATIONS_ROLES.includes(role as UserRole))
+        .map((assignment) => toUiRole(assignment.role))
+        .filter((role): role is UserRole => Boolean(role && CORE_OPERATIONS_ROLES.includes(role)))
     )];
     if (!assignedRoles.length) {
       await authService.logout();
@@ -501,7 +479,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...assignment,
       userId: me.user.id,
       status: assignment.status || 'active',
-      validFrom: assignment.validFrom || new Date().toISOString(),
+      validFrom: assignment.validFrom || '',
       scopeType: assignment.scopeType as ApiRoleAssignment['scopeType'],
     } as ApiRoleAssignment)));
     setAvailableRoles(assignedRoles);
@@ -539,7 +517,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await refreshBackendData();
       } catch {
         if (isMounted) {
-          setApiStatus('demo');
+          setApiStatus('disconnected');
         }
       }
     };
@@ -551,6 +529,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(null);
       setAvailableRoles([]);
       setRoleAssignments([]);
+      setHubs([]); setRegions([]); setCatchments([]); setSessions([]); setAppointments([]); setQueue([]); setPatients([]);
+      setStations([]); setEquipment([]); setStaff([]); setEncounters([]); setAuditLogs([]); setNotifications([]); setExceptions([]);
+      setDashboardOverview(null); setApiErrors([]);
+      setServiceTypes([]);
       showToast('Session ended. Please sign in again.');
     };
     window.addEventListener('healora:logged-out', handleLoggedOut);
@@ -563,7 +545,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-time Queue Stream (SSE) for active session
   useEffect(() => {
-    if (!isAuthenticated || !syncWithBackend || !sessions.length) return;
+    if (!isAuthenticated || !sessions.length) return;
     const activeSession = sessions.find((s) => s.status === 'in_progress') || sessions[0];
     if (!activeSession) return;
 
@@ -572,19 +554,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       () => {
         // Refetch queue on queue update event
         queueService.getQueue(activeSession.id).then((res) => {
-          if (res?.items) {
-            setQueue(
-              res.items.map((t) => mapApiQueueTicketToQueueItem(t, activeSession.hubId, activeSession.id))
-            );
-          }
-        }).catch(() => {});
+          setQueue((current) => [
+            ...current.filter((item) => item.sessionId !== activeSession.id),
+            ...res.items.map((t) => mapApiQueueTicketToQueueItem(t, activeSession.hubId, activeSession.id, activeSession.serviceType)),
+          ]);
+        }).catch((err) => showToast(`Queue refresh failed: ${err instanceof Error ? err.message : 'API error'}`));
       }
     );
 
     return () => {
       unsubscribe();
     };
-  }, [isAuthenticated, sessions, syncWithBackend]);
+  }, [isAuthenticated, sessions]);
 
   // Auth Action Methods
   const loginWithCredentials = async (email: string, pass: string): Promise<StaffLoginResponse> => {
@@ -665,612 +646,328 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(null);
     setAvailableRoles([]);
     setRoleAssignments([]);
+    setHubs([]); setRegions([]); setCatchments([]); setSessions([]); setAppointments([]); setQueue([]); setPatients([]);
+    setStations([]); setEquipment([]); setStaff([]); setEncounters([]); setAuditLogs([]); setNotifications([]); setExceptions([]);
+    setDashboardOverview(null); setApiErrors([]); setServiceTypes([]);
     showToast('Signed out successfully.');
   };
 
-  // Operational Action Handlers
-  const checkInAppointment = (appointmentId: string) => {
-    const apt = appointments.find((a) => a.id === appointmentId);
-    if (!apt) return;
-
-    const tokenNum = `A-${Math.floor(100 + Math.random() * 900)}`;
-    const newQueueItem: QueueItem = {
-      id: `q_${Date.now()}`,
-      ticketNumber: tokenNum,
-      encounterId: `enc_${Date.now()}`,
-      appointmentId: apt.id,
-      patientId: apt.patientId,
-      patientName: apt.patientName,
-      patientNameBn: apt.patientNameBn,
-      patientPhone: apt.patientPhone,
-      hubId: apt.hubId,
-      sessionId: apt.sessionId,
-      stationId: 'st_dhk_01',
-      stationName: 'Station 1: Reception & Identity',
-      currentStatus: 'waiting',
-      priority: 'normal',
-      arrivalTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      waitMinutes: 0,
-      serviceType: apt.serviceType,
-      assignedStaffName: 'Unassigned',
-      stepProgress: 1,
-    };
-
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === appointmentId ? { ...a, status: 'checked_in', queueToken: tokenNum } : a))
-    );
-    setQueue((prev) => [newQueueItem, ...prev]);
-
-    // Add notification
-    const newNotif: AppNotification = {
-      id: `notif_${Date.now()}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      category: 'queue',
-      title: `Queue Token Issued (${tokenNum})`,
-      titleBn: `সিরিয়াল টোকেন ইস্যু (${tokenNum})`,
-      message: `${apt.patientName} checked in. Assigned to Station 1.`,
-      messageBn: `${apt.patientNameBn || apt.patientName} চেক-ইন সম্পন্ন। ১ নং স্টেশনে পাঠানো হয়েছে।`,
-      channel: 'internal_system',
-      recipientRoleOrPhone: 'hub_manager',
-      status: 'delivered',
-      priority: 'normal',
-      acknowledged: false,
-    };
-    setNotifications((prev) => [newNotif, ...prev]);
-
-    addAuditLog(`Patient Check-in (${tokenNum})`, 'Queue', newQueueItem.id, `Issued token for ${apt.patientName}.`);
-    showToast(`Checked in ${apt.patientName} -> Token: ${tokenNum}`);
-
-    // Call API if synchronized
-    if (syncWithBackend && !appointmentId.startsWith('apt_')) {
-      appointmentsService.checkIn(appointmentId).catch(() => {});
+  // Mutations are confirmed by the backend, then all visible data is reloaded from API responses.
+  const runMutation = async (successMessage: string, request: () => Promise<unknown>): Promise<boolean> => {
+    try {
+      await request();
+      await refreshBackendData();
+      showToast(successMessage);
+      return true;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Request failed';
+      showToast('API action failed: ' + detail);
+      return false;
     }
   };
 
-  const callNextPatient = (stationId: string) => {
-    const station = stations.find((s) => s.id === stationId);
-    const nextWaiting = queue.find((q) => q.currentStatus === 'waiting');
+  const checkInAppointment = async (appointmentId: string): Promise<void> => {
+    await runMutation('Appointment checked in.', () => appointmentsService.checkIn(appointmentId));
+  };
 
-    if (!nextWaiting) {
-      showToast('No patients currently waiting in queue.');
+  const callNextPatient = async (stationId: string): Promise<void> => {
+    const next = queue.find((item) => item.currentStatus === 'waiting');
+    if (!next) { showToast('No patients are waiting in the API queue.'); return; }
+    await runMutation('Ticket called to station.', () => queueService.callTicket(next.id, stationId));
+  };
+
+  const advanceQueueStatus = async (queueId: string, nextStatus: QueueState): Promise<void> => {
+    const item = queue.find((row) => row.id === queueId);
+    if (!item) { showToast('Queue ticket was not found in the current API data.'); return; }
+    if (nextStatus === 'in_service') {
+      await runMutation('Queue service started.', () => queueService.startTicket(queueId, item.stationId));
       return;
     }
-
-    setQueue((prev) =>
-      prev.map((q) =>
-        q.id === nextWaiting.id
-          ? {
-              ...q,
-              currentStatus: 'called',
-              stationId,
-              stationName: station?.name || q.stationName,
-              stepProgress: 2,
-            }
-          : q
-      )
-    );
-
-    if (station) {
-      setStations((prev) =>
-        prev.map((s) =>
-          s.id === stationId ? { ...s, currentTicketNumber: nextWaiting.ticketNumber } : s
-        )
-      );
-    }
-
-    addAuditLog(
-      `Called Ticket (${nextWaiting.ticketNumber})`,
-      'Queue',
-      nextWaiting.id,
-      `Called to ${station?.name || 'Station'}.`
-    );
-    showToast(`Calling ${nextWaiting.ticketNumber} to ${station?.name || 'station'}`);
-
-    if (syncWithBackend && !nextWaiting.id.startsWith('q_')) {
-      queueService.callTicket(nextWaiting.id, stationId).catch(() => {});
-    }
-  };
-
-  const advanceQueueStatus = (queueId: string, nextStatus: QueueState) => {
-    const item = queue.find((q) => q.id === queueId);
-    if (!item) return;
-
-    setQueue((prev) =>
-      prev.map((q) => {
-        if (q.id === queueId) {
-          const step =
-            nextStatus === 'completed'
-              ? 4
-              : nextStatus === 'in_service'
-              ? 3
-              : nextStatus === 'called'
-              ? 2
-              : 1;
-          return { ...q, currentStatus: nextStatus, stepProgress: step };
-        }
-        return q;
-      })
-    );
-
     if (nextStatus === 'completed') {
-      setAppointments((prev) =>
-        prev.map((a) => (a.id === item.appointmentId ? { ...a, status: 'completed' } : a))
-      );
+      await runMutation('Queue ticket completed.', () => queueService.completeTicket(queueId));
+      return;
     }
+    if (nextStatus === 'no_show') {
+      await runMutation('Queue ticket marked no-show.', () => queueService.markNoShow(queueId));
+      return;
+    }
+    showToast('This queue transition is not available in the backend API.');
+  };
 
-    addAuditLog(`Queue Status -> ${nextStatus}`, 'Queue', queueId, `Ticket ${item.ticketNumber} advanced.`);
-    showToast(`Ticket ${item.ticketNumber} set to ${nextStatus.replace('_', ' ')}`);
+  const transferStation = async (queueId: string, newStationId: string): Promise<void> => {
+    await runMutation('Queue ticket transferred.', () => queueService.transferTicket(queueId, { stationId: newStationId }));
+  };
 
-    if (syncWithBackend && !queueId.startsWith('q_')) {
-      if (nextStatus === 'in_service') {
-        queueService.startTicket(queueId, item.stationId).catch(() => {});
-      } else if (nextStatus === 'completed') {
-        queueService.completeTicket(queueId).catch(() => {});
+  const registerWalkIn = async (patientData: Partial<Patient>, sessionId: string, onPatientRegistered?: (id: string) => void): Promise<string | null> => {
+    if (!sessionId) throw new Error('Choose an in-progress session for walk-ins.');
+    // Check current capacity before creating a patient; the backend checks again atomically on booking.
+    const session = await sessionsService.getSession(sessionId);
+    if (session.status !== 'in_progress') throw new ApiError(409, 'SESSION_NOT_ACTIVE', 'Start this session before registering a walk-in.');
+    if (session.hub && session.hub.status !== 'active') throw new ApiError(409, 'HUB_NOT_ACTIVE', 'Activate the selected hub before registering a walk-in.');
+    if (!session.allowOverbooking && session.walkInCount >= session.walkInCapacity) {
+      throw new ApiError(409, 'WALK_IN_CAPACITY_FULL', `No walk-in capacity left: ${session.walkInCount} used out of ${session.walkInCapacity}. Ask a hub administrator to update capacity, or select another session.`);
+    }
+      let patientId = patientData.id;
+      if (!patientId) {
+        if (!patientData.fullName?.trim() || !patientData.phone?.trim()) {
+          throw new Error('Patient name and phone are required to register a new patient.');
+        }
+        const patient = await patientsService.register({
+          hubId: session.hubId,
+          fullName: patientData.fullName.trim(),
+          fullNameBn: patientData.fullNameBn || undefined,
+          phone: patientData.phone.trim(),
+          sex: patientData.gender === 'Female' ? 'female' : patientData.gender === 'Male' ? 'male' : patientData.gender === 'Other' ? 'other' : 'unknown',
+          age: patientData.age,
+        });
+        patientId = patient.id;
+        onPatientRegistered?.(patientId);
       }
+      if (!patientId) throw new Error('The patient record has no API identifier.');
+      const result = await queueService.registerWalkIn(session.id, { patientId, identityConfirmed: true });
+      if (!result.ticket?.displayCode) throw new Error('The backend did not return a queue token. Check Live Queue before trying again.');
+      await refreshBackendData();
+      showToast(`Walk-in registered. Token: ${result.ticket.displayCode}`);
+      return result.ticket.displayCode;
+  };
+
+  const createSession = async (sessionData: Partial<HubSession>): Promise<boolean> => {
+    const hubId = sessionData.hubId || selectedHubId;
+    const serviceTypeId = sessionData.serviceTypeId;
+    const sessionDate = sessionData.date;
+    const appointmentCapacity = sessionData.totalCapacity;
+    const walkInCapacity = sessionData.walkInCapacity;
+    if (!hubId || !serviceTypeId || !sessionDate || !sessionData.startTime || !sessionData.endTime || !sessionData.title || !sessionData.sessionType) {
+      showToast('Select a hub, service type, session type, title, date and time before creating a session.');
+      return false;
+    }
+    if (!Number.isInteger(appointmentCapacity) || appointmentCapacity! < 1 || !Number.isInteger(walkInCapacity) || walkInCapacity! < 0) {
+      showToast('Enter valid appointment and walk-in capacities.');
+      return false;
+    }
+    const startsAt = new Date(sessionDate + 'T' + sessionData.startTime + ':00+06:00').toISOString();
+    const endsAt = new Date(sessionDate + 'T' + sessionData.endTime + ':00+06:00').toISOString();
+    if (new Date(endsAt) <= new Date(startsAt)) {
+      showToast('Session end time must be after its start time.');
+      return false;
+    }
+    return runMutation('Session created.', () => sessionsService.createSession({
+      hubId,
+      serviceTypeId,
+      title: sessionData.title!,
+      sessionType: sessionData.sessionType!,
+      sessionDate,
+      startsAt,
+      endsAt,
+      appointmentCapacity: appointmentCapacity!,
+      walkInCapacity: walkInCapacity!,
+      teamLeadUserId: sessionData.teamLeadId || undefined,
+    }));
+  };
+
+  const cancelSession = async (sessionId: string, reason: string): Promise<boolean> => {
+    if (!reason.trim()) { showToast('A cancellation reason is required.'); return false; }
+    return runMutation('Session cancelled.', () => sessionsService.cancel(sessionId, reason.trim()));
+  };
+
+  const publishSession = async (sessionId: string, overrideReason?: string): Promise<void> => {
+    await runMutation('Session published.', () => sessionsService.publish(sessionId, overrideReason));
+  };
+
+  const openBookingSession = async (sessionId: string): Promise<void> => {
+    await runMutation('Session opened for booking.', () => sessionsService.openBooking(sessionId));
+  };
+
+  const startSession = async (sessionId: string): Promise<void> => {
+    await runMutation('Session started.', () => sessionsService.start(sessionId));
+  };
+
+  const completeSession = async (sessionId: string): Promise<void> => {
+    await runMutation('Session completed.', () => sessionsService.complete(sessionId));
+  };
+
+  const createAppointment = async (apt: Partial<HubAppointment>): Promise<boolean> => {
+    if (!apt.sessionId || !apt.patientId) { showToast('Choose an API patient and session before booking.'); return false; }
+    const source = ['campaign', 'local_doctor', 'referral', 'operations_assignment'].includes(apt.bookingSource || '')
+      ? apt.bookingSource as 'campaign' | 'local_doctor' | 'referral' | 'operations_assignment'
+      : 'operations_assignment';
+    return runMutation('Appointment created.', () => appointmentsService.createAppointment(apt.sessionId!, {
+      patientId: apt.patientId!,
+      slotId: apt.slotId,
+      source,
+      hubAssignmentBasis: 'operations_assignment',
+    }));
+  };
+
+  const markAppointmentNoShow = async (appointmentId: string): Promise<void> => {
+    await runMutation('Appointment marked no-show.', () => appointmentsService.markNoShow(appointmentId));
+  };
+
+  const toggleStationStatus = async (stationId: string, newStatus: StationStatus, reason = 'Status updated by authorized staff.'): Promise<void> => {
+    await runMutation('Station status updated.', () => stationsEquipmentService.setStationStatus(stationId, newStatus, reason));
+  };
+
+  const toggleEquipmentStatus = async (eqId: string, newStatus: EquipmentStatus, reason = ''): Promise<void> => {
+    if (!reason.trim()) { showToast('Enter a reason before changing equipment status.'); return; }
+    await runMutation('Equipment status updated.', async () => {
+      if (newStatus === 'retired') return stationsEquipmentService.retireEquipment(eqId, reason.trim());
+      return stationsEquipmentService.setEquipmentStatus(eqId, newStatus, reason.trim());
+    });
+  };
+
+  const recordEquipmentService = async (eqId: string, data: { kind: 'inspection' | 'calibration' | 'maintenance'; notes: string; serviceProvider?: string; nextDueOn?: string }): Promise<boolean> => {
+    if (!data.notes.trim()) { showToast('Maintenance notes are required.'); return false; }
+    return runMutation('Equipment service event recorded.', () => stationsEquipmentService.recordServiceEvent(eqId, data));
+  };
+
+  const reassignEncounter = async (
+    encounterId: string,
+    userId: string,
+    role: 'special_team_lead' | 'field_health_worker' | 'local_doctor' | 'registered_doctor'
+  ): Promise<void> => {
+    await runMutation('Encounter reassigned.', () => encountersExceptionsService.assignEncounter(encounterId, { userId, role }));
+  };
+
+  const resolveException = async (exceptionId: string, notes?: string): Promise<void> => {
+    if (!notes?.trim()) { showToast('Resolution notes are required.'); return; }
+    await runMutation('Exception resolved.', () => encountersExceptionsService.resolve(exceptionId, notes.trim()));
+  };
+
+  const acknowledgeException = async (exceptionId: string): Promise<void> => {
+    await runMutation('Exception acknowledged.', () => encountersExceptionsService.acknowledge(exceptionId));
+  };
+
+  const escalateException = async (exceptionId: string, to: 'regional_operations' | 'clinical_operations', note: string): Promise<void> => {
+    if (!note.trim()) { showToast('Escalation note is required.'); return; }
+    await runMutation('Exception escalated.', () => encountersExceptionsService.escalate(exceptionId, to, note.trim()));
+  };
+
+  const dismissException = async (exceptionId: string, reason: string): Promise<void> => {
+    if (!reason.trim()) { showToast('A dismissal reason is required.'); return; }
+    await runMutation('Exception dismissed.', () => encountersExceptionsService.dismiss(exceptionId, reason.trim()));
+  };
+
+  const acknowledgeNotification = async (id: string): Promise<void> => {
+    try {
+      await reportsAuditService.markNotificationRead(id);
+      setNotifications((items) => items.map((item) => item.id === id ? { ...item, acknowledged: true } : item));
+      showToast('Notification marked read.');
+    } catch (error) {
+      showToast('Could not mark notification read: ' + (error instanceof Error ? error.message : 'API error'));
     }
   };
 
-  const transferStation = (queueId: string, newStationId: string) => {
-    const item = queue.find((q) => q.id === queueId);
-    const targetStation = stations.find((s) => s.id === newStationId);
-    if (!item || !targetStation) return;
+  const dismissNotification = acknowledgeNotification;
 
-    setQueue((prev) =>
-      prev.map((q) =>
-        q.id === queueId
-          ? {
-              ...q,
-              currentStatus: 'waiting',
-              stationId: newStationId,
-              stationName: targetStation.name,
-              stepProgress: 2,
-            }
-          : q
-      )
-    );
+  const addHub = async (hub: Partial<Hub>): Promise<boolean> => {
+    if (!hub.code?.trim() || !hub.regionId || !hub.name?.trim() || !hub.address?.trim()) {
+      showToast('Hub code, region, name and address are required.');
+      return false;
+    }
+    return runMutation('Hub created.', () => hubsService.createHub({
+      code: hub.code!.trim(), regionId: hub.regionId!, name: hub.name!.trim(), addressLine: hub.address!.trim(),
+      nameBn: hub.nameBn || undefined, addressLineBn: hub.addressBn || undefined, contactPhone: hub.phone || undefined,
+      emergencyContactPhone: hub.emergencyPhone || undefined, nearestReferralFacility: hub.emergencyReferralFacility || undefined,
+    }));
+  };
 
-    addAuditLog(`Transfer Ticket (${item.ticketNumber})`, 'Queue', queueId, `Transferred to ${targetStation.name}.`);
-    showToast(`Transferred ${item.ticketNumber} -> ${targetStation.name}`);
+  const updateHubProfile = async (hubId: string, hub: Partial<Hub>): Promise<boolean> => {
+    return runMutation('Hub profile updated.', () => hubsService.updateHub(hubId, {
+      name: hub.name, nameBn: hub.nameBn, addressLine: hub.address, addressLineBn: hub.addressBn,
+      contactPhone: hub.phone, nearestReferralFacility: hub.emergencyReferralFacility,
+      emergencyContactPhone: hub.emergencyPhone,
+    }));
+  };
 
-    if (syncWithBackend && !queueId.startsWith('q_')) {
-      queueService.transferTicket(queueId, { targetStationId: newStationId }).catch(() => {});
+  const updateHubStatus = async (hubId: string, status: HubStatus, reason = ''): Promise<void> => {
+    if (!reason.trim()) { showToast('Enter a reason before changing hub status.'); return; }
+    await runMutation('Hub status updated.', () => hubsService.updateStatus(hubId, status, reason.trim()));
+  };
+
+  const addRegion = async (region: Partial<Region> & { parentId?: string }): Promise<boolean> => {
+    if (!region.code?.trim() || !region.name?.trim() || !region.level) {
+      showToast('Region code, name and administrative level are required.');
+      return false;
+    }
+    return runMutation('Region created.', () => regionsService.createRegion({
+      code: region.code!.trim(), name: region.name!.trim(), nameBn: region.nameBn || undefined, level: region.level!, parentId: region.parentId || undefined,
+    }));
+  };
+
+  const addCatchment = async (catchment: Partial<CatchmentArea>): Promise<boolean> => {
+    if (!catchment.hubId || !catchment.regionId) { showToast('Choose a hub and region for the catchment.'); return false; }
+    return runMutation('Catchment assigned.', () => hubsService.addCatchment(catchment.hubId!, catchment.regionId!, true));
+  };
+
+  const addStaffMember = async (member: Partial<StaffMember>): Promise<{ userId: string; temporaryPassword: string; activated: boolean } | null> => {
+    if (!member.email?.trim() || !member.fullName?.trim() || !member.role || !member.assignedHubIds?.[0]) {
+      showToast('Staff name, work email, hub and role are required.');
+      return null;
+    }
+    if (!['hub_manager', 'reception_officer', 'queue_coordinator', 'equipment_officer'].includes(member.role)) {
+      showToast('Clinical roles require a verified backend credential before assignment.');
+      return null;
+    }
+
+    let createdUserId: string | undefined;
+    let temporaryPassword: string | undefined;
+    let accountActivated = false;
+    try {
+      const user = await staffService.createUser({
+        email: member.email.trim(),
+        name: member.fullName.trim(),
+        nameBn: member.fullNameBn || undefined,
+        phone: member.phone || undefined,
+      });
+      createdUserId = user.id;
+      await staffService.assignRole(user.id, { role: member.role, scopeType: 'hub', hubId: member.assignedHubIds[0] });
+      const issued = await staffService.issueTemporaryPassword(user.id, 'Initial staff account setup');
+      temporaryPassword = issued.temporaryPassword;
+      const activation = await staffService.setUserStatus(user.id, 'active', 'Activated after initial role and password setup');
+      if (activation.user.status !== 'active') throw new Error('The backend did not activate the new account.');
+      accountActivated = true;
+      await refreshBackendData();
+      showToast('Staff account created, activated and assigned from the backend.');
+      return { userId: user.id, temporaryPassword, activated: true };
+    } catch (error) {
+      await refreshBackendData().catch(() => undefined);
+      const detail = error instanceof Error ? error.message : 'Request failed';
+      const code = error instanceof ApiError ? ` (${error.code})` : '';
+      if (temporaryPassword && createdUserId) {
+        showToast(accountActivated
+          ? `Account ${createdUserId} is active, but the latest data refresh failed: ${detail}${code}`
+          : `Password issued, but account activation needs attention for user ${createdUserId}: ${detail}${code}`);
+        return { userId: createdUserId, temporaryPassword, activated: accountActivated };
+      }
+      if (createdUserId) {
+        showToast(`Account ${createdUserId} was created, but setup did not finish: ${detail}${code}`);
+      } else {
+        showToast(`Staff account setup failed: ${detail}${code}`);
+      }
+      return null;
     }
   };
 
-  const registerWalkIn = (patientData: Partial<Patient>, serviceType: string) => {
-    const newPatId = `pat_${Date.now()}`;
-    const tokenNum = `W-${Math.floor(100 + Math.random() * 900)}`;
-
-    const newPatient: Patient = {
-      id: newPatId,
-      canonicalHealoraId: `HLR-SAV-${Math.floor(1000 + Math.random() * 9000)}`,
-      fullName: patientData.fullName || 'Walk-in Patient',
-      fullNameBn: patientData.fullNameBn || 'ওয়াক-ইন রোগী',
-      phone: patientData.phone || '01700000000',
-      gender: patientData.gender || 'Male',
-      age: patientData.age || 35,
-      district: 'Dhaka',
-      upazila: 'Savar',
-      nationalIdMasked: '•••• •••• 9999',
-      consentStatus: 'active',
-      consentDate: new Date().toISOString().slice(0, 10),
-      preferredHubId: selectedHubId,
-      totalEncounters: 1,
-    };
-
-    const newQueueItem: QueueItem = {
-      id: `q_${Date.now()}`,
-      ticketNumber: tokenNum,
-      encounterId: `enc_${Date.now()}`,
-      appointmentId: `apt_walk_${Date.now()}`,
-      patientId: newPatient.id,
-      patientName: newPatient.fullName,
-      patientNameBn: newPatient.fullNameBn,
-      patientPhone: newPatient.phone,
-      hubId: selectedHubId,
-      sessionId: sessions[0]?.id || 'sess_dhk_01',
-      stationId: 'st_dhk_01',
-      stationName: 'Station 1: Reception & Identity',
-      currentStatus: 'waiting',
-      priority: 'normal',
-      arrivalTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      waitMinutes: 0,
-      serviceType: serviceType || 'General Consultation',
-      assignedStaffName: 'Unassigned',
-      stepProgress: 1,
-    };
-
-    setPatients((prev) => [newPatient, ...prev]);
-    setQueue((prev) => [newQueueItem, ...prev]);
-
-    addAuditLog(`Registered Walk-in (${tokenNum})`, 'Patient', newPatient.id, `Created walk-in for ${newPatient.fullName}.`);
-    showToast(`Walk-in registered -> Token: ${tokenNum}`);
-
-    if (syncWithBackend && sessions[0]?.id && !sessions[0].id.startsWith('sess_')) {
-      queueService.registerWalkIn(sessions[0].id, {
-        patientId: newPatient.id,
-        serviceTypeId: undefined,
-        notes: `Walk-in registered at reception`,
-      }).catch(() => {});
-    }
+  const addStation = async (station: Partial<HubStation>): Promise<boolean> => {
+    const hubId = station.hubId || selectedHubId;
+    if (!hubId || !station.code?.trim() || !station.name?.trim()) { showToast('Select a hub and provide station code and name.'); return false; }
+    return runMutation('Station created.', () => stationsEquipmentService.createStation(hubId, {
+      code: station.code!.trim(), name: station.name!.trim(), nameBn: station.nameBn || undefined,
+      stationType: station.stationType === 'counseling' ? 'counselling' : station.stationType || 'other',
+    }));
   };
 
-  const createSession = (sessionData: Partial<HubSession>): boolean => {
-    const activeHub = hubs.find((h) => h.id === (sessionData.hubId || selectedHubId));
-    const newSession: HubSession = {
-      id: `sess_${Date.now()}`,
-      hubId: sessionData.hubId || selectedHubId,
-      hubName: activeHub?.name || 'Savar Physical Hub',
-      title: sessionData.title || 'Special Diabetes & NCD Camp',
-      titleBn: sessionData.titleBn || 'বিশেষ ডায়াবেটিস ও এনসিডি ক্যাম্প',
-      serviceType: sessionData.serviceType || 'basic_vitals',
-      date: sessionData.date || new Date().toISOString().slice(0, 10),
-      startTime: sessionData.startTime || '09:00',
-      endTime: sessionData.endTime || '16:00',
-      sessionType: sessionData.sessionType || 'special_camp',
-      status: 'published',
-      bookedCount: 0,
-      totalCapacity: sessionData.totalCapacity || 50,
-      walkInCapacity: sessionData.walkInCapacity || 10,
-      walkInUsed: 0,
-      teamLeadId: 'stf_01',
-      teamLeadName: 'Dr. Arjun Mehta',
-      healthWorkersCount: 3,
-      doctorsCount: 1,
-      requiredEquipmentReady: true,
-      minimumStaffReady: true,
-    };
-
-    setSessions((prev) => [newSession, ...prev]);
-    addAuditLog(`Session Created (${newSession.title})`, 'Session', newSession.id, `Capacity: ${newSession.totalCapacity}.`);
-    showToast(`Session created: ${newSession.title}`);
-
-    if (syncWithBackend) {
-      sessionsService.createSession({
-        hubId: newSession.hubId,
-        title: newSession.title,
-        titleBn: newSession.titleBn,
-        date: newSession.date,
-        startTime: newSession.startTime,
-        endTime: newSession.endTime,
-        capacityTotal: newSession.totalCapacity,
-        capacityWalkIn: newSession.walkInCapacity,
-        sessionType: newSession.sessionType === 'special_camp' ? 'special_camp' : 'standard_clinic',
-      }).catch(() => {});
-    }
-    return true;
+  const addEquipment = async (equipmentItem: Partial<HubEquipment>): Promise<boolean> => {
+    const hubId = equipmentItem.hubId || selectedHubId;
+    const allowed = ['bp_monitor', 'glucometer', 'weighing_scale', 'stadiometer', 'thermometer', 'pulse_oximeter', 'tablet', 'printer', 'other'];
+    const rawCategory = equipmentItem.category === 'weight_scale' ? 'weighing_scale' : equipmentItem.category;
+    const category = allowed.includes(rawCategory || '') ? rawCategory as 'bp_monitor' | 'glucometer' | 'weighing_scale' | 'stadiometer' | 'thermometer' | 'pulse_oximeter' | 'tablet' | 'printer' | 'other' : 'other';
+    if (!hubId || !equipmentItem.code?.trim()) { showToast('Select a hub and provide an asset tag.'); return false; }
+    return runMutation('Equipment registered.', () => stationsEquipmentService.createEquipment({
+      hubId, assetTag: equipmentItem.code!.trim(), category, make: equipmentItem.name || undefined, model: equipmentItem.model || undefined,
+      serialNumber: equipmentItem.serialNumber || undefined, stationId: equipmentItem.stationId || undefined, notes: equipmentItem.notes || undefined,
+    }));
   };
-
-  const cancelSession = (sessionId: string, reason: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === sessionId ? { ...s, status: 'cancelled' } : s))
-    );
-    addAuditLog(`Cancelled Session`, 'Session', sessionId, `Reason: ${reason}.`);
-    showToast(`Session cancelled.`);
-
-    if (syncWithBackend && !sessionId.startsWith('sess_')) {
-      sessionsService.cancel(sessionId, reason).catch(() => {});
-    }
-  };
-
-  const createAppointment = (aptData: Partial<HubAppointment>) => {
-    const newApt: HubAppointment = {
-      id: `apt_${Date.now()}`,
-      appointmentCode: `APT-${Math.floor(1000 + Math.random() * 9000)}`,
-      patientId: aptData.patientId || `pat_${Date.now()}`,
-      patientName: aptData.patientName || 'Booked Patient',
-      patientNameBn: aptData.patientNameBn || 'নিবন্ধিত রোগী',
-      patientPhone: aptData.patientPhone || '01700000000',
-      hubId: aptData.hubId || selectedHubId,
-      hubName: 'Healora Hub Savar',
-      sessionId: aptData.sessionId || sessions[0]?.id || 'sess_dhk_01',
-      serviceType: aptData.serviceType || 'General Consultation',
-      slotTime: aptData.slotTime || '11:00',
-      status: 'confirmed',
-      bookingSource: 'patient_app',
-      createdAt: new Date().toISOString(),
-      consentRecorded: true,
-    };
-
-    setAppointments((prev) => [newApt, ...prev]);
-    addAuditLog(`Booked Appointment`, 'Appointment', newApt.id, `Patient: ${newApt.patientName}.`);
-    showToast(`Appointment booked for ${newApt.patientName}`);
-
-    if (syncWithBackend && aptData.sessionId && !aptData.sessionId.startsWith('sess_')) {
-      appointmentsService.createAppointment(aptData.sessionId, {
-        patientId: newApt.patientId,
-        scheduledTime: newApt.slotTime,
-      }).catch(() => {});
-    }
-  };
-
-  const markAppointmentNoShow = (appointmentId: string) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === appointmentId ? { ...a, status: 'no_show' } : a))
-    );
-    addAuditLog(`Marked No-Show`, 'Appointment', appointmentId, `No-show recorded.`);
-    showToast(`Appointment marked as no-show.`);
-
-    if (syncWithBackend && !appointmentId.startsWith('apt_')) {
-      appointmentsService.markNoShow(appointmentId).catch(() => {});
-    }
-  };
-
-  const toggleStationStatus = (stationId: string, newStatus: StationStatus) => {
-    setStations((prev) =>
-      prev.map((s) => (s.id === stationId ? { ...s, status: newStatus } : s))
-    );
-    addAuditLog(`Station Status -> ${newStatus}`, 'Hub', stationId, `Station updated.`);
-    showToast(`Station status set to ${newStatus}`);
-
-    if (syncWithBackend && !stationId.startsWith('st_')) {
-      stationsEquipmentService.setStationStatus(stationId, newStatus as any).catch(() => {});
-    }
-  };
-
-  const toggleEquipmentStatus = (eqId: string, newStatus: EquipmentStatus) => {
-    setEquipment((prev) =>
-      prev.map((e) => (e.id === eqId ? { ...e, status: newStatus } : e))
-    );
-    addAuditLog(`Equipment Status -> ${newStatus}`, 'Equipment', eqId, `Status updated.`);
-    showToast(`Device status set to ${newStatus}`);
-
-    if (syncWithBackend && !eqId.startsWith('eq_')) {
-      stationsEquipmentService.setEquipmentStatus(eqId, newStatus as any).catch(() => {});
-    }
-  };
-
-  const retrySyncEncounter = (encounterId: string) => {
-    setEncounters((prev) =>
-      prev.map((e) =>
-        e.id === encounterId
-          ? {
-              ...e,
-              syncState: 'synced',
-            }
-          : e
-      )
-    );
-    addAuditLog(`Retried Sync`, 'Encounter', encounterId, `Pushed to AP-DCC Tier-IV Gazipur.`);
-    showToast(`Encounter synced with Bangladesh Data Center`);
-  };
-
-  const reassignEncounter = (encounterId: string, newWorker: string) => {
-    setEncounters((prev) =>
-      prev.map((e) =>
-        e.id === encounterId
-          ? { ...e, assignedWorkerName: newWorker }
-          : e
-      )
-    );
-    addAuditLog(`Reassigned Encounter`, 'Encounter', encounterId, `Assigned to ${newWorker}.`);
-    showToast(`Encounter reassigned to ${newWorker}`);
-  };
-
-  const resolveException = (exceptionId: string, notes?: string) => {
-    setExceptions((prev) =>
-      prev.map((ex) =>
-        ex.id === exceptionId
-          ? {
-              ...ex,
-              status: 'resolved',
-              details: notes ? `${ex.details} (Note: ${notes})` : ex.details,
-            }
-          : ex
-      )
-    );
-    addAuditLog(`Resolved Exception`, 'Security', exceptionId, notes || 'Resolved.');
-    showToast(`Operational exception resolved`);
-
-    if (syncWithBackend && !exceptionId.startsWith('exc_')) {
-      encountersExceptionsService.resolve(exceptionId, notes || 'Resolved').catch(() => {});
-    }
-  };
-
-  const acknowledgeNotification = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, acknowledged: true } : n))
-    );
-  };
-
-  const dismissNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-    if (syncWithBackend && !id.startsWith('notif_')) {
-      reportsAuditService.markNotificationRead(id).catch(() => {});
-    }
-  };
-
-  const addHub = (hubData: Partial<Hub>) => {
-    const newHub: Hub = {
-      id: `hub_${Date.now()}`,
-      code: hubData.code || `HUB-DH-${Math.floor(10 + Math.random() * 90)}`,
-      name: hubData.name || 'New Regional Hub',
-      nameBn: hubData.nameBn || hubData.name || 'নতুন আঞ্চলিক হাব',
-      status: hubData.status || 'active',
-      regionId: hubData.regionId || regions[0]?.id || 'reg_dhaka',
-      division: hubData.division || 'Dhaka',
-      district: hubData.district || 'Dhaka',
-      upazila: hubData.upazila || 'Savar',
-      unionName: hubData.unionName || 'Savar Sadar',
-      address: hubData.address || 'Savar, Dhaka',
-      addressBn: hubData.addressBn || 'সাভার, ঢাকা',
-      phone: hubData.phone || '+8801700000000',
-      operatingHours: hubData.operatingHours || '08:00 - 16:00 (Sat-Thu)',
-      services: hubData.services || ['NCD Screening', 'Basic Vitals'],
-      assignedManager: hubData.assignedManager || 'Kamrul Hassan',
-      emergencyReferralFacility: hubData.emergencyReferralFacility || 'Savar UHC',
-      emergencyPhone: hubData.emergencyPhone || '+8801711999888',
-      capacityPerDay: hubData.capacityPerDay || 60,
-      activeSessionsToday: 1,
-      openStationsCount: 4,
-      totalDevicesCount: 10,
-    };
-
-    setHubs((prev) => [newHub, ...prev]);
-    addAuditLog(`Hub Registered (${newHub.code})`, 'Hub', newHub.id, `Created hub ${newHub.name}.`);
-    showToast(`Hub created: ${newHub.name}`);
-
-    if (syncWithBackend) {
-      hubsService.createHub({
-        code: newHub.code,
-        name: newHub.name,
-        nameBn: newHub.nameBn,
-        regionId: newHub.regionId,
-        addressLine: `${newHub.upazila}, ${newHub.district}`,
-        contactPhone: newHub.phone,
-      }).catch(() => {});
-    }
-  };
-
-  const updateHubStatus = (hubId: string, status: HubStatus) => {
-    setHubs((prev) =>
-      prev.map((h) => (h.id === hubId ? { ...h, status } : h))
-    );
-    addAuditLog(`Hub Status -> ${status}`, 'Hub', hubId, `Status updated.`);
-    showToast(`Hub status updated to ${status}`);
-
-    if (syncWithBackend && !hubId.startsWith('hub_')) {
-      hubsService.updateStatus(hubId, status as any).catch(() => {});
-    }
-  };
-
-  const addRegion = (regionData: Partial<Region>) => {
-    const newReg: Region = {
-      id: `reg_${Date.now()}`,
-      code: regionData.code || `REG-DH-${Math.floor(10 + Math.random() * 90)}`,
-      name: regionData.name || 'New Catchment Region',
-      nameBn: regionData.nameBn || regionData.name || 'নতুন অঞ্চল',
-      division: regionData.division || 'Dhaka',
-      regionalManagerName: regionData.regionalManagerName || 'Tariqul Islam',
-      regionalManagerPhone: regionData.regionalManagerPhone || '+8801712000001',
-      totalHubsCount: regionData.totalHubsCount || 1,
-      activeHubsCount: regionData.activeHubsCount || 1,
-      catchmentPopulation: regionData.catchmentPopulation || 150000,
-      districts: regionData.districts || ['Dhaka'],
-      catchmentUnions: regionData.catchmentUnions || ['Savar', 'Ashulia'],
-      status: 'active',
-    };
-
-    setRegions((prev) => [newReg, ...prev]);
-    addAuditLog(`Region Added (${newReg.code})`, 'Region', newReg.id, `Created ${newReg.name}.`);
-    showToast(`Region added: ${newReg.name}`);
-
-    if (syncWithBackend) {
-      regionsService.createRegion({
-        name: newReg.name,
-        nameBn: newReg.nameBn,
-        code: newReg.code,
-        level: 'upazila',
-      }).catch(() => {});
-    }
-  };
-
-  const addCatchment = (catchmentData: Partial<CatchmentArea>) => {
-    const newCatchment: CatchmentArea = {
-      id: `catch_${Date.now()}`,
-      hubId: catchmentData.hubId || selectedHubId,
-      hubName: catchmentData.hubName || 'Healora Hub Savar',
-      regionId: catchmentData.regionId || regions[0]?.id || 'reg_savar',
-      name: catchmentData.name || 'Savar Upazila Catchment',
-      nameBn: catchmentData.nameBn || 'সাভার উপজেলা এলাকা',
-      upazila: catchmentData.upazila || 'Savar',
-      unions: catchmentData.unions || ['Savar Sadar', 'Ashulia'],
-      estimatedPopulation: catchmentData.estimatedPopulation || 45000,
-      coverageRadiusKm: catchmentData.coverageRadiusKm || 12,
-      basis: catchmentData.basis || 'operations_assignment',
-      outOfCatchmentPolicy: catchmentData.outOfCatchmentPolicy || 'allowed_with_capacity',
-    };
-
-    setCatchments((prev) => [newCatchment, ...prev]);
-    addAuditLog(`Catchment Assigned`, 'Catchment', newCatchment.id, `Linked ${newCatchment.name}.`);
-    showToast(`Catchment linked: ${newCatchment.name}`);
-
-    if (syncWithBackend && !catchmentData.hubId?.startsWith('hub_') && !catchmentData.regionId?.startsWith('reg_')) {
-      hubsService.addCatchment(newCatchment.hubId, newCatchment.regionId).catch(() => {});
-    }
-  };
-
-  const addStaffMember = (memberData: Partial<StaffMember>) => {
-    const newStaff: StaffMember = {
-      id: `stf_${Date.now()}`,
-      fullName: memberData.fullName || 'New Staff Member',
-      fullNameBn: memberData.fullNameBn || memberData.fullName || 'নতুন কর্মী',
-      role: memberData.role || 'field_health_worker',
-      roleTitle: 'Community Health Worker',
-      roleTitleBn: 'কমিউনিটি স্বাস্থ্য কর্মী',
-      phone: memberData.phone || '+8801700000000',
-      bmdcOrLicenseNumber: memberData.bmdcOrLicenseNumber || 'BMDC-PENDING',
-      active: true,
-      assignedHubIds: [memberData.assignedHubIds?.[0] || selectedHubId],
-      supervisorName: 'Kamrul Hassan (Hub Mgr)',
-      credentialVerified: true,
-      activeShift: 'Day Shift (08:00 - 16:00)',
-    };
-
-    setStaff((prev) => [newStaff, ...prev]);
-    addAuditLog(`Staff Added (${newStaff.fullName})`, 'Staff', newStaff.id, `Role: ${newStaff.role}.`);
-    showToast(`Staff member registered: ${newStaff.fullName}`);
-  };
-
-  const addStation = (stationData: Partial<HubStation>) => {
-    const newStation: HubStation = {
-      id: `st_${Date.now()}`,
-      hubId: stationData.hubId || selectedHubId,
-      name: stationData.name || `Station ${stations.length + 1}: Service Point`,
-      nameBn: stationData.nameBn || stationData.name || `স্টেশন ${stations.length + 1}`,
-      stationType: stationData.stationType || 'vitals',
-      status: 'available',
-      currentStaffName: stationData.currentStaffName || 'Station Staff',
-      completedTodayCount: 0,
-      supportedServices: ['NCD Vitals', 'Blood Pressure', 'Glucose'],
-    };
-
-    setStations((prev) => [...prev, newStation]);
-    addAuditLog(`Station Added (${newStation.name})`, 'Hub', newStation.id, `Created station.`);
-    showToast(`Station created: ${newStation.name}`);
-
-    if (syncWithBackend && !selectedHubId.startsWith('hub_')) {
-      stationsEquipmentService.createStation(selectedHubId, {
-        name: newStation.name,
-        nameBn: newStation.nameBn,
-        stationType: 'triage_vitals',
-      }).catch(() => {});
-    }
-  };
-
-  const addEquipment = (eqData: Partial<HubEquipment>) => {
-    const newEq: HubEquipment = {
-      id: `eq_${Date.now()}`,
-      code: eqData.code || `EQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      name: eqData.name || 'Digital Vitals Monitor',
-      category: eqData.category || 'bp_monitor',
-      model: eqData.model || 'MOD-2026',
-      serialNumber: eqData.serialNumber || `SN-${Math.floor(1000 + Math.random() * 9000)}`,
-      hubId: eqData.hubId || selectedHubId,
-      stationId: eqData.stationId || 'st_dhk_01',
-      stationName: 'Station 2: Vitals & Triage',
-      status: 'available',
-      lastCalibrationDate: new Date().toISOString().slice(0, 10),
-      nextCalibrationDue: '2026-12-31',
-      batteryPercent: 100,
-    };
-
-    setEquipment((prev) => [newEq, ...prev]);
-    addAuditLog(`Equipment Registered (${newEq.serialNumber})`, 'Equipment', newEq.id, `Added ${newEq.name}.`);
-    showToast(`Equipment registered: ${newEq.name}`);
-
-    if (syncWithBackend) {
-      stationsEquipmentService.createEquipment({
-        hubId: newEq.hubId,
-        stationId: newEq.stationId,
-        deviceType: newEq.category,
-        deviceName: newEq.name,
-        modelNumber: newEq.model,
-        serialNumber: newEq.serialNumber,
-      }).catch(() => {});
-    }
-  };
-
   return (
     <AppContext.Provider
       value={{
@@ -1312,14 +1009,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentUser,
         apiStatus,
         apiLatency,
+        apiErrors,
+        dashboardOverview,
+        serviceTypes,
         isAuthModalOpen,
         setIsAuthModalOpen,
         mfaChallenge,
         passwordChangeRequired,
         mfaEnrollmentRequired,
         mfaEnrollmentUri,
-        syncWithBackend,
-        setSyncWithBackend,
         loginWithCredentials,
         verifyMfaCode,
         changeStaffPassword,
@@ -1334,17 +1032,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         transferStation,
         registerWalkIn,
         createSession,
+        publishSession,
+        openBookingSession,
+        startSession,
+        completeSession,
         cancelSession,
         createAppointment,
         markAppointmentNoShow,
         toggleStationStatus,
         toggleEquipmentStatus,
-        retrySyncEncounter,
+        recordEquipmentService,
         reassignEncounter,
         resolveException,
+        acknowledgeException,
+        escalateException,
+        dismissException,
         acknowledgeNotification,
         dismissNotification,
         addHub,
+        updateHubProfile,
         updateHubStatus,
         addRegion,
         addCatchment,

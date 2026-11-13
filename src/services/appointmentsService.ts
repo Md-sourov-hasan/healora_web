@@ -25,8 +25,17 @@ export interface ApiAppointment {
   hubId: string;
   patientId: string;
   slotId?: string | null;
-  scheduledTime: string; // HH:MM or ISO
-  serviceType: string;
+  createdAt: string;
+  source: string;
+  hubAssignmentBasis?: string;
+  isWalkIn: boolean;
+  session?: { id: string; title?: string | null; sessionDate?: string; startsAt?: string } | null;
+  slot?: { id: string; startsAt: string; endsAt: string } | null;
+  serviceTypeName?: string;
+  queueToken?: string | null;
+  consentRecorded?: boolean;
+  scheduledTime?: string;
+  serviceType?: string;
   serviceTypeId?: string;
   status:
     | 'pending_confirmation'
@@ -44,11 +53,13 @@ export interface ApiAppointment {
     healoraCode?: string;
     fullName: string;
     fullNameBn?: string;
-    phone: string;
-    gender?: string;
-    age?: number;
+    maskedPhone?: string | null;
+    phone?: string | null;
+    dateOfBirth?: string | null;
+    birthYearEstimated?: number | null;
+    sex?: string;
+    status?: string;
   };
-  queueToken?: string | null;
   notes?: string;
 }
 
@@ -69,6 +80,11 @@ export interface WaitlistEntry {
   priority: number;
   status: 'waiting' | 'offered' | 'booked' | 'expired' | 'removed';
   createdAt: string;
+}
+
+export interface SessionAppointmentRoster {
+  sessionId: string;
+  items: ApiAppointment[];
 }
 
 export interface CheckInResponse {
@@ -99,6 +115,10 @@ export const appointmentsService = {
     });
   },
 
+  async getSessionAppointments(sessionId: string, status?: string): Promise<SessionAppointmentRoster> {
+    return apiRequest<SessionAppointmentRoster>(`/sessions/${sessionId}/appointments`, { params: status ? { status } : undefined });
+  },
+
   /**
    * Get appointment details
    */
@@ -113,9 +133,11 @@ export const appointmentsService = {
     sessionId: string,
     data: {
       patientId: string;
-      serviceTypeId?: string;
-      scheduledTime?: string;
-      notes?: string;
+      slotId?: string;
+      source: 'operations_assignment' | 'referral' | 'local_doctor' | 'campaign';
+      hubAssignmentBasis?: 'operations_assignment' | 'referral' | 'campaign' | 'patient_choice' | 'catchment_default';
+      referralNote?: string;
+      idempotencyKey?: string;
     }
   ): Promise<ApiAppointment> {
     return apiRequest<ApiAppointment>(`/sessions/${sessionId}/appointments`, {
@@ -142,13 +164,13 @@ export const appointmentsService = {
    * Check in patient: generates queue ticket and starts visit
    */
   async checkIn(id: string): Promise<CheckInResponse> {
-    return apiRequest<CheckInResponse>(`/appointments/${id}/check-in`, { method: 'POST', json: {} });
+    return apiRequest<CheckInResponse>(`/appointments/${id}/check-in`, { method: 'POST', json: { identityConfirmed: true } });
   },
 
   /**
    * Reschedule appointment
    */
-  async reschedule(id: string, data: { newSessionId: string; newTime?: string }): Promise<ApiAppointment> {
+  async reschedule(id: string, data: { sessionId: string; slotId?: string }): Promise<ApiAppointment> {
     return apiRequest<ApiAppointment>(`/appointments/${id}/reschedule`, {
       method: 'POST',
       json: data,
@@ -175,17 +197,14 @@ export const appointmentsService = {
   /**
    * Get waitlist for a session
    */
-  async getWaitlist(sessionId: string): Promise<WaitlistEntry[]> {
-    return apiRequest<WaitlistEntry[]>(`/sessions/${sessionId}/waitlist`);
+  async getWaitlist(sessionId: string): Promise<{ items: WaitlistEntry[] }> {
+    return apiRequest<{ items: WaitlistEntry[] }>(`/sessions/${sessionId}/waitlist`);
   },
 
   /**
    * Add patient to session waitlist
    */
-  async addToWaitlist(
-    sessionId: string,
-    data: { patientId: string; serviceTypeId?: string; priority?: number }
-  ): Promise<WaitlistEntry> {
+  async addToWaitlist(sessionId: string, data: { patientId: string }): Promise<WaitlistEntry> {
     return apiRequest<WaitlistEntry>(`/sessions/${sessionId}/waitlist`, {
       method: 'POST',
       json: data,

@@ -33,8 +33,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     passwordChangeRequired,
     mfaEnrollmentRequired,
     mfaEnrollmentUri,
-    syncWithBackend,
-    setSyncWithBackend,
+    apiErrors,
     refreshBackendData,
   } = useApp();
 
@@ -245,7 +244,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. manager.savar@healora.demo"
+                      placeholder="Work email address"
                       className="w-full rounded-ctl border border-ink/20 bg-bone/40 pl-9 pr-3 py-2 text-sm text-ink outline-none focus:border-moss"
                     />
                   </div>
@@ -419,24 +418,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <span className="font-mono text-ink">{apiLatency} ms</span>
                 </div>
               )}
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-ink-mid">Bangladesh Tier-IV Gate:</span>
-                <span className="font-bold text-moss">AP-DCC Gazipur Verified</span>
-              </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-ctl border border-ink/10 p-2.5 bg-white">
-              <div>
-                <span className="font-bold text-ink block">Live Backend Sync</span>
-                <span className="text-[11px] text-ink-light">Fetch and push state to Render backend API</span>
+            {apiErrors.length > 0 && (
+              <div className="rounded-ctl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+                <div className="mb-1 font-bold">Some API data could not be loaded</div>
+                <ul className="list-disc space-y-1 pl-4">{apiErrors.map((item) => <li key={item}>{item}</li>)}</ul>
               </div>
-              <input
-                type="checkbox"
-                checked={syncWithBackend}
-                onChange={(e) => setSyncWithBackend(e.target.checked)}
-                className="h-4 w-4 rounded text-moss focus:ring-moss"
-              />
-            </div>
+            )}
 
             <button
               type="button"

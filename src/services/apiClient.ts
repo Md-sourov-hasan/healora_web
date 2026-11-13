@@ -4,9 +4,10 @@
  * Base URL: https://healora-hub-backend-fqvj.onrender.com/api/v1
  */
 
-export const API_BASE =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '') ||
-  'https://healora-hub-backend-fqvj.onrender.com/api/v1';
+export const API_BASE = import.meta.env.DEV
+  ? '/api/v1'
+  : (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '') ||
+    'https://healora-hub-backend-fqvj.onrender.com/api/v1';
 
 // The health check endpoint has no /api/v1 prefix per PRD / hello.md specification
 export const HEALTH_ENDPOINT = API_BASE.replace(/\/api\/v\d+$/, '') + '/health';

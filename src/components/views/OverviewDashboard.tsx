@@ -13,6 +13,7 @@ import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
+import { WalkInSessionCapacity, describeWalkInError } from './WalkInSessionCapacity';
 import { useApp } from '../../context/AppContext';
 
 const labelClass = 'mb-1.5 block text-[13px] font-semibold text-slate';
@@ -26,7 +27,8 @@ export const OverviewDashboard: React.FC = () => {
     hubs,
     selectedHubId,
     sessions,
-    appointments,
+    serviceTypes,
+    dashboardOverview,
     queue,
     equipment,
     encounters,
@@ -41,59 +43,83 @@ export const OverviewDashboard: React.FC = () => {
   // Walk-in form states
   const [walkInName, setWalkInName] = useState('');
   const [walkInPhone, setWalkInPhone] = useState('');
-  const [walkInAge, setWalkInAge] = useState(48);
-  const [walkInGender, setWalkInGender] = useState<'Female' | 'Male'>('Female');
-  const [walkInService, setWalkInService] = useState('Basic Vitals & Glucose Screening');
+  const [walkInAge, setWalkInAge] = useState('');
+  const [walkInGender, setWalkInGender] = useState<'Female' | 'Male' | 'Other' | 'Unknown'>('Unknown');
+  const [walkInSessionId, setWalkInSessionId] = useState('');
+  const [issuingWalkIn, setIssuingWalkIn] = useState(false);
+  const [walkInError, setWalkInError] = useState('');
+  const [issuedWalkInToken, setIssuedWalkInToken] = useState<string | null>(null);
+  const [registeredWalkIn, setRegisteredWalkIn] = useState<{ key: string; id: string } | null>(null);
 
   // New session form states
   const [newSessionTitle, setNewSessionTitle] = useState('');
-  const [newSessionCapacity, setNewSessionCapacity] = useState(30);
-  const [newSessionWalkInCap, setNewSessionWalkInCap] = useState(8);
-  const [newSessionOverrideReason, setNewSessionOverrideReason] = useState('');
+  const [newSessionDate, setNewSessionDate] = useState('');
+  const [newSessionStart, setNewSessionStart] = useState('');
+  const [newSessionEnd, setNewSessionEnd] = useState('');
+  const [newSessionServiceTypeId, setNewSessionServiceTypeId] = useState('');
+  const [newSessionType, setNewSessionType] = useState<'standard_clinic' | 'special_camp'>('standard_clinic');
+  const [newSessionCapacity, setNewSessionCapacity] = useState('');
+  const [newSessionWalkInCap, setNewSessionWalkInCap] = useState('');
 
   const currentHub = hubs.find((h) => h.id === selectedHubId) || hubs[0];
-  const hubAppointments = appointments.filter((a) => a.hubId === selectedHubId);
   const hubQueue = queue.filter((q) => q.hubId === selectedHubId);
-  const waitingCount = hubQueue.filter((q) => q.currentStatus === 'waiting').length;
-  const inServiceCount = hubQueue.filter((q) => q.currentStatus === 'in_service' || q.currentStatus === 'called').length;
-  const completedCount = hubQueue.filter((q) => q.currentStatus === 'completed').length;
-  const pendingSyncCount = encounters.filter((e) => e.hubId === selectedHubId && e.syncState !== 'synced').length;
+  const hubEncounters = encounters.filter((e) => e.hubId === selectedHubId);
+  const pendingSyncCount = hubEncounters.filter((e) => ['pending_local', 'sync_failed', 'retrying'].includes(e.syncState ?? '')).length;
   const calibrationDueDevices = equipment.filter((eq) => eq.hubId === selectedHubId && eq.status === 'calibration_due').length;
+  const activeSessions = sessions.filter((session) => session.hubId === selectedHubId && session.status === 'in_progress');
+  const apiVisits = dashboardOverview?.cards.visits;
 
-  const handleWalkInSubmit = (e: React.FormEvent) => {
+  const handleWalkInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!walkInName.trim()) return;
-    registerWalkIn(
+    if (!walkInName.trim() || issuingWalkIn) return;
+    const identityKey = JSON.stringify([walkInName.trim(), walkInPhone.trim(), walkInAge, walkInGender]);
+    setIssuingWalkIn(true);
+    setWalkInError('');
+    try {
+    const ok = await registerWalkIn(
       {
+        id: registeredWalkIn?.key === identityKey ? registeredWalkIn.id : undefined,
         fullName: walkInName,
-        fullNameBn: walkInName,
-        phone: walkInPhone || '+880 1711 000000',
-        age: Number(walkInAge),
+        phone: walkInPhone,
+        age: walkInAge ? Number(walkInAge) : undefined,
         gender: walkInGender,
       },
-      walkInService
+      walkInSessionId,
+      (id) => setRegisteredWalkIn({ key: identityKey, id })
     );
-    setWalkInName('');
-    setWalkInPhone('');
-    setIsWalkInOpen(false);
+    if (ok) {
+      setIssuedWalkInToken(ok);
+      setRegisteredWalkIn(null);
+      setWalkInName('');
+      setWalkInPhone('');
+      setIsWalkInOpen(false);
+    }
+    } catch (error) {
+      setWalkInError(describeWalkInError(error));
+    } finally {
+      setIssuingWalkIn(false);
+    }
   };
 
-  const handleSessionSubmit = (e: React.FormEvent) => {
+  const handleSessionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSessionTitle.trim()) return;
-    const ok = createSession({
+    const ok = await createSession({
+      hubId: selectedHubId,
+      serviceTypeId: newSessionServiceTypeId,
       title: newSessionTitle,
-      titleBn: newSessionTitle,
+      date: newSessionDate,
+      startTime: newSessionStart,
+      endTime: newSessionEnd,
+      sessionType: newSessionType,
       totalCapacity: Number(newSessionCapacity),
       walkInCapacity: Number(newSessionWalkInCap),
-      healthWorkersCount: 2,
-      doctorsCount: 1,
-      requiredEquipmentReady: true,
-      overrideReason: newSessionOverrideReason,
     });
     if (ok) {
       setNewSessionTitle('');
-      setNewSessionOverrideReason('');
+      setNewSessionServiceTypeId('');
+      setNewSessionCapacity('');
+      setNewSessionWalkInCap('');
       setIsNewSessionOpen(false);
     }
   };
@@ -133,13 +159,13 @@ export const OverviewDashboard: React.FC = () => {
             <span className="text-xs font-semibold uppercase tracking-[0.04em] text-teal">
               {language === 'bn' ? 'অপারেশনাল কন্ট্রোল সেন্টার' : 'OPERATIONAL CONTROL CENTER'}
             </span>
-            <StatusPill label={language === 'bn' ? 'সক্রিয় শাখা' : 'Active Hub'} variant="active" />
+            <StatusPill label={currentHub.status.replaceAll('_', ' ')} variant={currentHub.status === 'active' ? 'active' : 'draft'} />
           </div>
           <h1 className="m-0 font-ui text-[32px] font-semibold tracking-[-0.01em] text-ink">
-            {language === 'bn' ? currentHub.nameBn : currentHub.name}
+            {language === 'bn' ? currentHub.nameBn || currentHub.name : currentHub.name}
           </h1>
           <p className="mt-1.5 mb-0 text-[15px] text-slate">
-            {language === 'bn' ? currentHub.addressBn : currentHub.address} • {currentHub.operatingHours}
+            {language === 'bn' ? currentHub.addressBn || currentHub.address : currentHub.address}
           </p>
         </div>
 
@@ -193,7 +219,7 @@ export const OverviewDashboard: React.FC = () => {
               <PhHeartbeat size={28} color="#FFFFFF" />
             </div>
             <div className="tabular-nums text-2xl font-bold text-white">
-              {waitingCount + inServiceCount + completedCount} / {currentHub.capacityPerDay}
+              {apiVisits ? `${apiVisits.completed} / ${apiVisits.expected}` : '—'}
             </div>
             <div className="text-xs text-sage-400">
               {language === 'bn' ? 'আজকের মোট রোগী সক্ষমতা' : 'Patients Served Today'}
@@ -212,10 +238,10 @@ export const OverviewDashboard: React.FC = () => {
             </div>
           </div>
           <div className="tabular-nums text-[32px] font-semibold text-ink">
-            {hubAppointments.length}
+            {dashboardOverview?.cards.appointmentsBookedToday.count ?? '—'}
           </div>
           <div className="mt-1.5 text-xs font-medium text-teal">
-            {hubAppointments.filter((a) => a.status === 'checked_in').length} {t.checkedIn}
+            {apiVisits?.checkedIn ?? '—'} {t.checkedIn}
           </div>
         </Card>
 
@@ -227,10 +253,10 @@ export const OverviewDashboard: React.FC = () => {
             </div>
           </div>
           <div className="tabular-nums text-[32px] font-semibold text-clay">
-            {waitingCount} <span className="text-lg font-normal text-slate">+ {inServiceCount}</span>
+            {apiVisits?.waiting ?? '—'} <span className="text-lg font-normal text-slate">+ {apiVisits?.inService ?? '—'}</span>
           </div>
           <div className="mt-1.5 text-xs text-slate">
-            {t.avgWaitTime}: <strong className="text-ink">14 mins</strong>
+            {t.avgWaitTime}: <strong className="text-ink">{dashboardOverview?.cards.timings.avgWaitingMinutes ?? '—'} {dashboardOverview?.cards.timings.avgWaitingMinutes != null ? 'mins' : ''}</strong>
           </div>
         </Card>
 
@@ -238,21 +264,19 @@ export const OverviewDashboard: React.FC = () => {
           <div className="mb-3 flex items-center justify-between">
             <span className="text-[13px] font-semibold text-slate">{t.syncPending}</span>
             <div
-              className={`flex h-9 w-9 items-center justify-center rounded-chip ${pendingSyncCount > 0 ? 'bg-warn-bg text-warn-fg' : 'bg-ok-bg text-ok-fg'
+              className={`flex h-9 w-9 items-center justify-center rounded-chip ${pendingSyncCount > 0 ? 'bg-warn-bg text-warn-fg' : hubEncounters.length > 0 ? 'bg-ok-bg text-ok-fg' : 'bg-mist text-slate'
                 }`}
             >
               <PhArrowsClockwise size={18} />
             </div>
           </div>
-          <div className={`tabular-nums text-[32px] font-semibold ${pendingSyncCount > 0 ? 'text-warn' : 'text-ok'}`}>
-            {pendingSyncCount}
+          <div className={`tabular-nums text-[32px] font-semibold ${pendingSyncCount > 0 ? 'text-warn' : hubEncounters.length > 0 ? 'text-ok' : 'text-slate'}`}>
+            {hubEncounters.length > 0 ? pendingSyncCount : '—'}
           </div>
           <div className="mt-1.5 text-xs text-slate">
-            {pendingSyncCount > 0 ? (
-              <span className="font-semibold text-warn">Mobile outbox queued</span>
-            ) : (
-              <span className="text-ok">All local vitals synchronized</span>
-            )}
+            {pendingSyncCount > 0 ? <span className="font-semibold text-warn">Pending, retrying or failed syncs in returned encounters</span>
+              : hubEncounters.length > 0 ? <span className="text-ok">No pending or failed syncs reported</span>
+                : <span className="text-slate">No encounters returned for the active sessions</span>}
           </div>
         </Card>
 
@@ -264,10 +288,10 @@ export const OverviewDashboard: React.FC = () => {
             </div>
           </div>
           <div className="tabular-nums text-[32px] font-semibold text-ink">
-            {equipment.filter((e) => e.hubId === selectedHubId && e.status === 'assigned').length} / {currentHub.totalDevicesCount}
+            {equipment.filter((e) => e.hubId === selectedHubId && e.status === 'assigned').length} / {equipment.filter((e) => e.hubId === selectedHubId).length}
           </div>
-          <div className={`mt-1.5 text-xs font-medium ${calibrationDueDevices > 0 ? 'text-bad' : 'text-ok'}`}>
-            {calibrationDueDevices > 0 ? `${calibrationDueDevices} device calibration due` : 'All devices operational'}
+          <div className={`mt-1.5 text-xs font-medium ${calibrationDueDevices > 0 ? 'text-bad' : 'text-slate'}`}>
+            {calibrationDueDevices > 0 ? `${calibrationDueDevices} device calibration due` : equipment.some((e) => e.hubId === selectedHubId) ? 'No returned devices flagged calibration due' : 'No equipment records returned'}
           </div>
         </Card>
       </div>
@@ -302,10 +326,10 @@ export const OverviewDashboard: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-[15px] font-semibold text-ink">
-                      {language === 'bn' ? item.patientNameBn : item.patientName}
+                      {language === 'bn' ? item.patientNameBn || item.patientName : item.patientName}
                     </div>
                     <div className="text-[13px] text-slate">
-                      {item.stationName} • {item.serviceType}
+                      {item.stationName} • {item.serviceType || '—'}
                     </div>
                   </div>
                 </div>
@@ -359,7 +383,7 @@ export const OverviewDashboard: React.FC = () => {
                   <div className="mb-2 flex items-start justify-between">
                     <div>
                       <h3 className="m-0 text-[15px] font-semibold text-ink">
-                        {language === 'bn' ? session.titleBn : session.title}
+                        {language === 'bn' ? session.titleBn || session.title : session.title}
                       </h3>
                       <div className="mt-0.5 text-[13px] text-slate">
                         {session.startTime} – {session.endTime} ({session.sessionType.replace('_', ' ')})
@@ -390,11 +414,11 @@ export const OverviewDashboard: React.FC = () => {
                   <div className="mt-3 flex items-center gap-4 text-xs text-pine">
                     <span className="flex items-center gap-1">
                       <PhCheckCircle size={14} color="#2F855A" />
-                      Lead: {session.teamLeadName}
+                      Lead: {session.teamLeadName || 'Not assigned'}
                     </span>
                     <span className="flex items-center gap-1">
                       <PhCheckCircle size={14} color="#2F855A" />
-                      Equip. Verified
+                      Equipment readiness: {session.requiredEquipmentReady === true ? 'Ready per backend' : session.requiredEquipmentReady === false ? 'Not ready' : 'Not reported'}
                     </span>
                   </div>
                 </div>
@@ -404,13 +428,21 @@ export const OverviewDashboard: React.FC = () => {
       </div>
 
       {/* Walk-in Registration Sheet */}
+      <ModalSheet isOpen={issuedWalkInToken !== null} onClose={() => setIssuedWalkInToken(null)} title="Walk-in token issued">
+        <p className="text-sm text-slate">Check-in completed. Queue token returned by the backend:</p>
+        <div className="my-6 text-center text-4xl font-bold text-pine">{issuedWalkInToken}</div>
+        <Button variant="primary" onClick={() => setIssuedWalkInToken(null)}>Done</Button>
+      </ModalSheet>
       <ModalSheet
         isOpen={isWalkInOpen}
-        onClose={() => setIsWalkInOpen(false)}
+        onClose={() => !issuingWalkIn && setIsWalkInOpen(false)}
         title={t.addWalkIn}
         subtitle="Assisted arrival registration & queue assignment without clinical pre-entry"
       >
         <form onSubmit={handleWalkInSubmit} className="flex flex-col gap-4">
+          {walkInError && <p role="alert" className="rounded-xl bg-bad-bg p-3 text-sm text-bad-fg">{walkInError}</p>}
+          {activeSessions.length === 0 && <p role="status" className="text-sm text-warn-fg">No session is in progress. Start an eligible session from Sessions &amp; Health Camps before registering a walk-in.</p>}
+          <label className="flex items-center gap-2 text-sm text-slate"><input type="checkbox" required /> I have confirmed this patient's identity.</label>
           <div>
             <label className={labelClass}>
               Full Name (রোগীর পূর্ণ নাম) *
@@ -447,7 +479,7 @@ export const OverviewDashboard: React.FC = () => {
               <input
                 type="number"
                 value={walkInAge}
-                onChange={(e) => setWalkInAge(Number(e.target.value))}
+                onChange={(e) => setWalkInAge(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -457,7 +489,7 @@ export const OverviewDashboard: React.FC = () => {
               </label>
               <select
                 value={walkInGender}
-                onChange={(e) => setWalkInGender(e.target.value as 'Female' | 'Male')}
+                onChange={(e) => setWalkInGender(e.target.value as 'Female' | 'Male' | 'Other' | 'Unknown')}
                 className={selectClass}
               >
                 <option value="Female">Female (মহিলা)</option>
@@ -466,32 +498,20 @@ export const OverviewDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className={labelClass}>
-              Service Requested (প্রয়োজনীয় সেবা)
-            </label>
-            <select
-              value={walkInService}
-              onChange={(e) => setWalkInService(e.target.value)}
-              className={selectClass}
-            >
-              <option value="Basic Vitals & Glucose Screening">Basic Vitals & Glucose Screening</option>
-              <option value="Hypertension Checkup">Hypertension Checkup</option>
-              <option value="Maternal Health Vitals">Maternal Health Vitals</option>
-              <option value="Specialist Pre-Teleconsultation Assessment">Specialist Pre-Teleconsultation Assessment</option>
-            </select>
-          </div>
+      <div>
+        <label className={labelClass}>Active session *</label>
+        <select required value={walkInSessionId} onChange={(e) => setWalkInSessionId(e.target.value)} className={selectClass}>
+          <option value="">Choose an in-progress session</option>
+          {activeSessions.map((session) => <option key={session.id} value={session.id}>{session.title} — {session.date}</option>)}
+        </select>
+      </div>
 
-          <div className="rounded-xl bg-mist p-3 text-xs text-pine">
-            <PhCheckCircle size={14} color="#1D6B66" className="mr-1.5 inline" />
-            Informed consent for physical measurement collection obtained in accordance with Bangladesh PDPA 2026.
-          </div>
-
+          <WalkInSessionCapacity sessionId={isWalkInOpen ? walkInSessionId : ''} />
           <div className="mt-4 flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setIsWalkInOpen(false)}>
+            <Button variant="secondary" disabled={issuingWalkIn} onClick={() => setIsWalkInOpen(false)}>
               {t.cancel}
             </Button>
-            <Button type="submit" variant="primary">
+            <Button type="submit" variant="primary" disabled={issuingWalkIn || !walkInSessionId}>
               Generate Token &amp; Check-in
             </Button>
           </div>
@@ -520,6 +540,28 @@ export const OverviewDashboard: React.FC = () => {
             />
           </div>
 
+          <label className="flex flex-col gap-1 text-[13px] font-semibold text-slate">
+            Service type *
+            <select required value={newSessionServiceTypeId} onChange={(e) => setNewSessionServiceTypeId(e.target.value)} className={selectClass}>
+              <option value="">Select service type</option>
+              {serviceTypes.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1 text-[13px] font-semibold text-slate">
+            Session type
+            <select value={newSessionType} onChange={(e) => setNewSessionType(e.target.value as 'standard_clinic' | 'special_camp')} className={selectClass}>
+              <option value="standard_clinic">Standard clinic</option>
+              <option value="special_camp">Special camp</option>
+            </select>
+          </label>
+
+          <div className="grid grid-cols-3 gap-3">
+            <label className="flex flex-col gap-1 text-[13px] font-semibold text-slate">Date<input required type="date" value={newSessionDate} onChange={(e) => setNewSessionDate(e.target.value)} className={inputClass} /></label>
+            <label className="flex flex-col gap-1 text-[13px] font-semibold text-slate">Starts<input required type="time" value={newSessionStart} onChange={(e) => setNewSessionStart(e.target.value)} className={inputClass} /></label>
+            <label className="flex flex-col gap-1 text-[13px] font-semibold text-slate">Ends<input required type="time" value={newSessionEnd} onChange={(e) => setNewSessionEnd(e.target.value)} className={inputClass} /></label>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>
@@ -527,8 +569,10 @@ export const OverviewDashboard: React.FC = () => {
               </label>
               <input
                 type="number"
+                required
+                min={1}
                 value={newSessionCapacity}
-                onChange={(e) => setNewSessionCapacity(Number(e.target.value))}
+                onChange={(e) => setNewSessionCapacity(e.target.value)}
                 className={inputClass}
               />
             </div>
@@ -538,42 +582,25 @@ export const OverviewDashboard: React.FC = () => {
               </label>
               <input
                 type="number"
+                required
+                min={0}
                 value={newSessionWalkInCap}
-                onChange={(e) => setNewSessionWalkInCap(Number(e.target.value))}
+                onChange={(e) => setNewSessionWalkInCap(e.target.value)}
                 className={inputClass}
               />
             </div>
           </div>
 
-          <div className="rounded-ctl border border-sage-200 bg-bone p-4">
-            <div className="mb-2 text-[13px] font-semibold text-pine">
-              Minimum Prerequisites Verification (PRD Section 8.5):
-            </div>
-            <ul className="m-0 pl-5 text-[13px] leading-[1.6] text-slate">
-              <li>Minimum Staff: 1 Special Team Lead, 1 Field Health Worker, 1 Reviewing Doctor.</li>
-              <li>Calibrated Devices: BP Monitor (HEM-7120), Glucometer, Pulse Oximeter.</li>
-            </ul>
-          </div>
-
-          <div>
-            <label className={labelClass}>
-              Administrative Override Reason (If prerequisites differ)
-            </label>
-            <input
-              type="text"
-              value={newSessionOverrideReason}
-              onChange={(e) => setNewSessionOverrideReason(e.target.value)}
-              placeholder="e.g. Remote outreach arrangement authorized by Regional Ops"
-              className="h-12 w-full rounded-xl border border-line px-3.5 font-ui text-sm text-ink"
-            />
-          </div>
+          <p className="m-0 rounded-ctl border border-line bg-bone p-3 text-xs text-slate">
+            The backend validates session readiness when you publish or start the session.
+          </p>
 
           <div className="mt-4 flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setIsNewSessionOpen(false)}>
               {t.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Publish Session
+              Create Session
             </Button>
           </div>
         </form>

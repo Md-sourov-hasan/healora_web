@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   PhShieldCheck,
   PhCheckCircle,
@@ -13,10 +13,12 @@ import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
 import { useApp } from '../../context/AppContext';
-import { ROLES_CONFIG, CORE_OPERATIONS_ROLES } from '../../config/rolesConfig';
+import { ROLES_CONFIG, CORE_OPERATIONS_ROLES, toUiRole } from '../../config/rolesConfig';
 import { regionsService, type ApiRegion } from '../../services/regionsService';
 import { staffService, type ApiUser } from '../../services/staffService';
 import type { UserRole } from '../../types';
+import { isBreakGlassActive, reportsAuditService, type BreakGlassLog } from '../../services/reportsAuditService';
+import { patientsService, type ApiPatient } from '../../services/patientsService';
 
 export const SettingsPermissionsView: React.FC = () => {
   const {
@@ -27,6 +29,10 @@ export const SettingsPermissionsView: React.FC = () => {
     setSimpleMode,
     activeRole,
     availableRoles,
+    currentUser,
+    apiStatus,
+    apiLatency,
+    apiErrors,
     setActiveRole,
     showToast,
     roleAssignments,
@@ -34,14 +40,23 @@ export const SettingsPermissionsView: React.FC = () => {
     revokeStaffRole,
     staff,
     hubs,
+    sessions,
+    selectedHubId,
     refreshBackendData,
   } = useApp();
 
-  const [maxWaitTime, setMaxWaitTime] = useState(20);
-  const [slotBuffer, setSlotBuffer] = useState(10);
-  const [allowOverbooking, setAllowOverbooking] = useState(false);
   const [breakGlassReason, setBreakGlassReason] = useState('');
-  const [isBreakGlassActive, setIsBreakGlassActive] = useState(false);
+  const [breakGlassPatientQuery, setBreakGlassPatientQuery] = useState('');
+  const [breakGlassPatients, setBreakGlassPatients] = useState<ApiPatient[]>([]);
+  const [breakGlassPatientId, setBreakGlassPatientId] = useState('');
+  const [breakGlassDuration, setBreakGlassDuration] = useState(60);
+  const [activeBreakGlass, setActiveBreakGlass] = useState<BreakGlassLog[]>([]);
+  const [myBreakGlass, setMyBreakGlass] = useState<BreakGlassLog[]>([]);
+  const [pendingBreakGlassReview, setPendingBreakGlassReview] = useState<BreakGlassLog[]>([]);
+  const [breakGlassReviewNotes, setBreakGlassReviewNotes] = useState<Record<string, string>>({});
+  const [reviewingBreakGlassId, setReviewingBreakGlassId] = useState<string | null>(null);
+  const canReviewBreakGlass = availableRoles.includes('platform_super_admin') || availableRoles.includes('auditor');
+  const canRequestBreakGlass = availableRoles.some((role) => ['local_doctor', 'registered_doctor', 'special_team_lead', 'field_health_worker'].includes(role));
 
   // Modal State for API Role Assignment
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -54,6 +69,22 @@ export const SettingsPermissionsView: React.FC = () => {
   const [backendRegions, setBackendRegions] = useState<ApiRegion[]>([]);
   const [isLoadingAssignmentOptions, setIsLoadingAssignmentOptions] = useState(false);
   const [assignmentOptionsError, setAssignmentOptionsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    if (canReviewBreakGlass) {
+      reportsAuditService.getBreakGlassList().then((response) => {
+        if (!mounted) return;
+        setActiveBreakGlass(response.items.filter(isBreakGlassActive));
+        setPendingBreakGlassReview(response.items.filter((entry) => (entry.reviewOutcome ?? 'pending') === 'pending'));
+      }).catch((error) => { if (mounted) showToast(error instanceof Error ? error.message : 'Break-glass records unavailable.'); });
+    }
+    if (canRequestBreakGlass) {
+      reportsAuditService.getMyBreakGlass().then((response) => { if (mounted) setMyBreakGlass(response.items); })
+        .catch((error) => { if (mounted) showToast(error instanceof Error ? error.message : 'Your break-glass records are unavailable.'); });
+    }
+    return () => { mounted = false; };
+  }, [canReviewBreakGlass, canRequestBreakGlass]);
 
   const openAssignRoleModal = async () => {
     setIsAssignModalOpen(true);
@@ -79,13 +110,18 @@ export const SettingsPermissionsView: React.FC = () => {
       showToast('Please select or specify a staff user ID.');
       return;
     }
+    if (['hub', 'region', 'session'].includes(assignScopeType) && !assignScopeId) {
+      showToast('Choose the required scope before assigning this role.');
+      return;
+    }
     setIsSubmittingRole(true);
     try {
       await assignStaffRole(assignUserId, {
         role: assignRole,
         scopeType: assignScopeType,
-        hubId: assignScopeType === 'hub' ? (assignScopeId || hubs[0]?.id) : undefined,
+        hubId: assignScopeType === 'hub' ? assignScopeId : undefined,
         regionId: assignScopeType === 'region' ? assignScopeId : undefined,
+        sessionId: assignScopeType === 'session' ? assignScopeId : undefined,
       });
       setIsAssignModalOpen(false);
       setAssignUserId('');
@@ -99,23 +135,66 @@ export const SettingsPermissionsView: React.FC = () => {
   const handleRevokeRole = async (assignmentId: string) => {
     if (window.confirm('Are you sure you want to revoke this role assignment?')) {
       try {
-        await revokeStaffRole(assignmentId, 'Revoked by supervisor in settings');
+        const reason = window.prompt('Enter the reason for revoking this role assignment (required):');
+        if (!reason?.trim()) return;
+        await revokeStaffRole(assignmentId, reason.trim());
       } catch {
         // error toast in context
       }
     }
   };
 
-  const handleSaveParameters = (e: React.FormEvent) => {
-    e.preventDefault();
-    showToast('Operational parameters updated and committed.');
+  const handleBreakGlassLookup = async () => {
+    if (!selectedHubId || !breakGlassPatientQuery.trim()) return;
+    try {
+      const result = await patientsService.lookup({ by: 'phone', value: breakGlassPatientQuery.trim(), hubId: selectedHubId });
+      setBreakGlassPatients(result.matches);
+      setBreakGlassPatientId('');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Patient lookup failed.'); }
   };
 
-  const handleBreakGlass = (e: React.FormEvent) => {
+  const handleBreakGlass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!breakGlassReason.trim()) return;
-    setIsBreakGlassActive(true);
-    showToast('Break-glass emergency authorization granted for 60 minutes. High-priority audit logged.');
+    if (!breakGlassPatientId || breakGlassReason.trim().length < 20) { showToast('Select a patient and provide a reason of at least 20 characters.'); return; }
+    try {
+      await reportsAuditService.requestBreakGlass({ patientId: breakGlassPatientId, reason: breakGlassReason.trim(), durationMinutes: breakGlassDuration });
+      if (canRequestBreakGlass) {
+        const mine = await reportsAuditService.getMyBreakGlass();
+        setMyBreakGlass(mine.items);
+      }
+      if (canReviewBreakGlass) {
+        const response = await reportsAuditService.getBreakGlassList();
+        setActiveBreakGlass(response.items.filter(isBreakGlassActive));
+        setPendingBreakGlassReview(response.items.filter((entry) => (entry.reviewOutcome ?? 'pending') === 'pending'));
+      }
+      setBreakGlassReason('');
+      showToast('Break-glass request accepted by the backend.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Break-glass request failed.'); }
+  };
+
+  const endBreakGlass = async (id: string) => {
+    try {
+      await reportsAuditService.endBreakGlass(id);
+      setActiveBreakGlass((items) => items.filter((item) => item.id !== id));
+      setMyBreakGlass((items) => items.map((item) => item.id === id ? { ...item, endedAt: new Date().toISOString() } : item));
+      showToast('Break-glass session ended by the backend.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Could not end break-glass session.'); }
+  };
+
+  const reviewBreakGlass = async (entry: BreakGlassLog, outcome: 'justified' | 'not_justified') => {
+    const notes = breakGlassReviewNotes[entry.id]?.trim();
+    if (entry.userId === currentUser?.id) { showToast('You cannot review your own break-glass access.'); return; }
+    if (outcome === 'not_justified' && !notes) { showToast('Add review notes before marking access not justified.'); return; }
+    setReviewingBreakGlassId(entry.id);
+    try {
+      await reportsAuditService.reviewBreakGlass(entry.id, outcome, notes || undefined);
+      const response = await reportsAuditService.getBreakGlassList();
+      setActiveBreakGlass(response.items.filter(isBreakGlassActive));
+      setPendingBreakGlassReview(response.items.filter((item) => (item.reviewOutcome ?? 'pending') === 'pending'));
+      setBreakGlassReviewNotes((items) => { const next = { ...items }; delete next[entry.id]; return next; });
+      showToast('Break-glass review recorded by the backend.');
+    } catch (error) { showToast(error instanceof Error ? error.message : 'Break-glass review failed.'); }
+    finally { setReviewingBreakGlassId(null); }
   };
 
   return (
@@ -126,7 +205,7 @@ export const SettingsPermissionsView: React.FC = () => {
           <span className="text-xs font-semibold tracking-[0.04em] uppercase text-teal">
             {language === 'bn' ? 'সিস্টেম কনফিগারেশন ও আইনগত অনুমতি' : 'PLATFORM GOVERNANCE & ACCESS CONTROL'}
           </span>
-          <StatusPill label="Bangladesh PDPA 2026 Verified" variant="active" />
+          <StatusPill label="Backend-managed authorization" variant="active" />
         </div>
         <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
           {t.navSettings}
@@ -134,52 +213,30 @@ export const SettingsPermissionsView: React.FC = () => {
         <p className="mt-1 mb-0 text-sm text-slate">
           {language === 'bn'
             ? 'ভূমিকাভিত্তিক অনুমতি (RBAC/ABAC), বাংলাদেশ স্বাস্থ্য তথ্য সুরক্ষা গেজেট ২০২৬ ও অপারেশনাল থ্রেশহোল্ড'
-            : 'Role-based access matrix, Bangladesh regulatory compliance status, and operational SLA parameters'}
+            : 'Backend account identity, assigned role scopes, and controls available through the API'}
         </p>
       </div>
 
-      {/* Compliance Overview Grid (PRD Section 17) */}
       <div className="mb-8 grid grid-cols-3 gap-5">
         <Card variant="card" className="border-t-3! border-t-teal!">
-          <div className="mb-2.5 flex items-center gap-2">
-            <PhShieldCheck size={20} color="#1D6B66" />
-            <h2 className="m-0 text-[15px] font-semibold text-ink">
-              Personal Data Protection Act, 2026
-            </h2>
-          </div>
-          <p className="mt-0 mb-2.5 text-[13px] leading-normal text-slate">
-            Health-related information classified as sensitive personal data. Specific, voluntary informed consent captured for each hub encounter.
-          </p>
-          <StatusPill label="Act No. 63 of 2026 Compliant" variant="completed" />
+          <div className="mb-2.5 flex items-center gap-2"><PhShieldCheck size={20} color="#1D6B66" /><h2 className="m-0 text-[15px] font-semibold text-ink">Backend API status</h2></div>
+          <p className="mt-0 mb-2.5 text-[13px] text-slate">Connection status and latency from live backend requests.</p>
+          <StatusPill label={apiStatus} variant={apiStatus === 'connected' ? 'active' : apiStatus === 'connecting' ? 'awaiting' : 'declined'} />
+          <p className="mb-0 mt-2 text-xs text-slate">Latency: {apiLatency === null ? 'Not reported' : `${apiLatency} ms`} · API errors: {apiErrors.length}</p>
         </Card>
-
         <Card variant="card" className="border-t-3! border-t-teal!">
-          <div className="mb-2.5 flex items-center gap-2">
-            <PhMapPin size={20} color="#1D6B66" />
-            <h2 className="m-0 text-[15px] font-semibold text-ink">
-              DGHS Telehealth Data Residency
-            </h2>
-          </div>
-          <p className="mt-0 mb-2.5 text-[13px] leading-normal text-slate">
-            Zero foreign cloud storage for patient vitals. Primary database and encrypted backups hosted within Bangladesh at AP-DCC Gazipur Tier-IV.
-          </p>
-          <StatusPill label="Local Residency Verified" variant="completed" />
+          <div className="mb-2.5 flex items-center gap-2"><PhMapPin size={20} color="#1D6B66" /><h2 className="m-0 text-[15px] font-semibold text-ink">Signed-in backend account</h2></div>
+          <p className="mt-0 mb-2.5 text-[13px] text-slate">Identity returned by the authenticated profile endpoint.</p>
+          <div className="text-sm font-semibold text-ink">{currentUser?.name || 'No account returned'}</div>
+          <div className="mt-1 break-all text-xs text-slate">{currentUser?.email || 'Email not returned'}</div>
+          <StatusPill label={currentUser?.status || 'Status not returned'} variant={currentUser?.status === 'active' ? 'active' : 'draft'} className="mt-2" />
         </Card>
-
         <Card variant="card" className="border-t-3! border-t-teal!">
-          <div className="mb-2.5 flex items-center gap-2">
-            <PhCheckCircle size={20} color="#1D6B66" />
-            <h2 className="m-0 text-[15px] font-semibold text-ink">
-              BMDC Telemedicine Guidelines
-            </h2>
-          </div>
-          <p className="mt-0 mb-2.5 text-[13px] leading-normal text-slate">
-            Registered practitioner verification, explicit consent for remote consultations, and health worker measurement provenance preserved.
-          </p>
-          <StatusPill label="BMDC Framework Aligned" variant="completed" />
+          <div className="mb-2.5 flex items-center gap-2"><PhCheckCircle size={20} color="#1D6B66" /><h2 className="m-0 text-[15px] font-semibold text-ink">Multi-factor authentication</h2></div>
+          <p className="mt-0 mb-2.5 text-[13px] text-slate">Enrollment state returned for the signed-in backend account.</p>
+          <StatusPill label={currentUser?.mfaEnabled === true ? 'Enabled' : currentUser?.mfaEnabled === false ? 'Not enabled' : 'Not reported'} variant={currentUser?.mfaEnabled === true ? 'active' : 'draft'} />
         </Card>
       </div>
-
       {/* Section 1: Role Permissions Matrix (PRD Section 6) */}
       <div className="mb-8">
         <div className="mb-3.5 flex items-center justify-between">
@@ -193,7 +250,7 @@ export const SettingsPermissionsView: React.FC = () => {
                 : 'The 7 core operations roles, exact responsibilities, least-privilege boundary and access controls'}
             </p>
           </div>
-          <span className="text-xs text-slate font-mono">Auth Broker: Enforced</span>
+          <span className="text-xs text-slate font-mono">Role choice limited to API assignments</span>
         </div>
 
         <Card variant="card" className="p-0! overflow-hidden">
@@ -205,7 +262,7 @@ export const SettingsPermissionsView: React.FC = () => {
                 <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">Scope Boundary</th>
                 <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">Core Responsibilities (কাজ)</th>
                 <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">Access Mode</th>
-                <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">Switch &amp; Test</th>
+                <th className="px-5 py-3.5 text-xs font-semibold uppercase text-slate">Select role</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line text-sm">
@@ -288,10 +345,7 @@ export const SettingsPermissionsView: React.FC = () => {
           <div className="flex items-center gap-2">
             <Button
               variant="secondary"
-              onClick={() => {
-                refreshBackendData();
-                showToast('Refreshed role assignments from backend API.');
-              }}
+              onClick={() => void refreshBackendData()}
               icon={<PhArrowsClockwise size={16} />}
             >
               Refresh
@@ -328,34 +382,35 @@ export const SettingsPermissionsView: React.FC = () => {
               ) : (
                 roleAssignments.map((assignment) => {
                   const staffUser = staff.find((s) => s.id === assignment.userId);
-                  const isRevoked = assignment.status === 'revoked';
+                  const canRevoke = assignment.status === 'active';
+                  const uiRole = toUiRole(assignment.role);
                   return (
                     <tr key={assignment.id} className="transition-colors hover:bg-mist/30">
                       <td className="px-5 py-4">
                         <div className="font-semibold text-ink">
-                          {staffUser?.fullName || assignment.userId}
+                          {assignment.user?.name || staffUser?.fullName || assignment.userId}
                         </div>
                         <div className="font-mono text-xs text-slate">{assignment.userId}</div>
                       </td>
                       <td className="px-5 py-4">
                         <span className="rounded bg-mist px-2 py-0.5 text-xs font-bold text-pine">
-                          {ROLES_CONFIG[assignment.role as UserRole]?.title || assignment.role}
+                          {uiRole ? ROLES_CONFIG[uiRole].title : assignment.role}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-xs font-semibold uppercase text-slate">
                         {assignment.scopeType}
                       </td>
                       <td className="px-5 py-4 text-xs font-mono text-slate">
-                        {assignment.hubId || assignment.regionId || 'Platform Wide'}
+                        {assignment.hubId || assignment.regionId || assignment.sessionId || (assignment.scopeType === 'platform' ? 'Platform Wide' : 'Not returned')}
                       </td>
                       <td className="px-5 py-4">
                         <StatusPill
                           label={assignment.status.toUpperCase()}
-                          variant={isRevoked ? 'cancelled' : 'completed'}
+                          variant={assignment.status === 'active' ? 'completed' : assignment.status === 'revoked' ? 'cancelled' : 'draft'}
                         />
                       </td>
                       <td className="px-5 py-4">
-                        {!isRevoked && (
+                        {canRevoke && (
                           <button
                             type="button"
                             onClick={() => handleRevokeRole(assignment.id)}
@@ -374,117 +429,99 @@ export const SettingsPermissionsView: React.FC = () => {
         </Card>
       </div>
 
-      {/* Section 2: Operational SLA Parameters */}
       <div className="mb-8 grid grid-cols-2 gap-6">
         <Card variant="card">
           <div className="mb-3 flex items-center gap-2">
             <PhSlidersHorizontal size={20} color="#1D6B66" />
-            <h3 className="m-0 text-base font-semibold text-ink">
-              Operational Thresholds &amp; SLA Rules
-            </h3>
+            <h3 className="m-0 text-base font-semibold text-ink">Operational thresholds</h3>
           </div>
-
-          <form onSubmit={handleSaveParameters} className="space-y-4">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">
-                Maximum Allowable Wait Time SLA (minutes)
-              </label>
-              <input
-                type="number"
-                value={maxWaitTime}
-                onChange={(e) => setMaxWaitTime(Number(e.target.value))}
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              />
-              <span className="text-[11px] text-slate">Triggers exception alert when patient wait exceeds this limit.</span>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">
-                Appointment Slot Buffer (minutes)
-              </label>
-              <input
-                type="number"
-                value={slotBuffer}
-                onChange={(e) => setSlotBuffer(Number(e.target.value))}
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="checkbox"
-                id="overbookingCheckbox"
-                checked={allowOverbooking}
-                onChange={(e) => setAllowOverbooking(e.target.checked)}
-                className="size-4 rounded border-line"
-              />
-              <label htmlFor="overbookingCheckbox" className="text-xs font-semibold text-ink">
-                Allow Overbooking (Default: strictly disabled per PRD Section 8.5)
-              </label>
-            </div>
-
-            <Button variant="primary" type="submit">
-              Save Parameters
-            </Button>
-          </form>
+          <p className="m-0 text-sm text-slate">This backend does not expose an API to edit global wait-time or overbooking settings. Queue and session limits shown elsewhere come from API records.</p>
         </Card>
 
-        {/* Section 3: Break-Glass Emergency Mode (PRD Section 6.4) */}
         <Card variant="card" className="border-t-3! border-t-bad!">
           <div className="mb-3 flex items-center gap-2">
             <PhLockKey size={20} color="#C53030" />
-            <h3 className="m-0 text-base font-semibold text-ink">
-              Emergency Break-Glass Override Protocol (PRD 6.4)
-            </h3>
+            <h3 className="m-0 text-base font-semibold text-ink">Break-glass sessions</h3>
           </div>
+          <p className="mb-4 mt-0 text-xs leading-relaxed text-slate">Break-glass access is patient-specific. Requests require a clinical staff role, a selected patient and a reason of at least 20 characters.</p>
 
-          <p className="text-xs text-slate leading-relaxed mb-4">
-            Under severe clinical emergencies or disaster response, authorized operations personnel can request temporary elevated access. Every break-glass activation generates an immediate high-priority audit record and notifies compliance supervisors.
-          </p>
-
-          {isBreakGlassActive ? (
-            <div className="rounded-xl bg-bad-bg p-4 text-xs text-bad-fg">
-              <div className="font-bold">BREAK-GLASS ELEVATION ACTIVE</div>
-              <div className="mt-1">Reason: {breakGlassReason}</div>
-              <div className="mt-1">Authorized for next 54 minutes. All interactions logged immutably.</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsBreakGlassActive(false);
-                  showToast('Break-glass emergency session revoked.');
-                }}
-                className="mt-3 cursor-pointer rounded-lg bg-bad px-3 py-1.5 font-bold text-white"
-              >
-                Revoke Emergency Session
-              </button>
+          {canReviewBreakGlass && (
+            <div className="mb-4 space-y-2">
+              {activeBreakGlass.map((entry) => (
+                <div key={entry.id} className="rounded-xl bg-bad-bg p-3 text-xs text-bad-fg">
+                  <div className="font-bold">Active API record · patient {entry.patient?.healoraCode || entry.patientId}</div>
+                  <div className="mt-1">Requested by {entry.user?.name || entry.userId}</div>
+                  <div className="mt-1">{entry.reason}</div>
+                  <div className="mt-1">Started {entry.startsAt} · Expires {entry.expiresAt}</div>
+                  {(availableRoles.includes('platform_super_admin') || entry.userId === currentUser?.id) && <button type="button" onClick={() => endBreakGlass(entry.id)} className="mt-2 rounded-lg bg-bad px-3 py-1.5 font-bold text-white">End session</button>}
+                </div>
+              ))}
             </div>
-          ) : (
-            <form onSubmit={handleBreakGlass} className="space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate">
-                  Emergency Justification Reason (Mandatory)
-                </label>
-                <textarea
-                  rows={2}
-                  required
-                  value={breakGlassReason}
-                  onChange={(e) => setBreakGlassReason(e.target.value)}
-                  placeholder="e.g. Mass casualty intake at Dhanmondi Hub requiring emergency desk bypass..."
-                  className="w-full rounded-xl border border-line p-2.5 text-xs"
-                />
-              </div>
+          )}
 
-              <button
-                type="submit"
-                className="cursor-pointer rounded-xl bg-bad px-4 py-2 text-xs font-bold text-white hover:bg-bad-fg transition"
-              >
-                Request 60-Minute Elevation
-              </button>
+          {!canReviewBreakGlass && canRequestBreakGlass && (
+            <div className="mb-4 space-y-2">
+              <h4 className="m-0 text-xs font-bold uppercase tracking-wide text-slate">My active break-glass access</h4>
+              {myBreakGlass.filter(isBreakGlassActive).length === 0 ? <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">No active break-glass access was returned for your account.</p> : myBreakGlass.filter(isBreakGlassActive).map((entry) => (
+                <div key={entry.id} className="rounded-xl bg-bad-bg p-3 text-xs text-bad-fg">
+                  <div className="font-bold">Patient {entry.patient?.healoraCode || entry.patientId}</div>
+                  <div className="mt-1">{entry.reason}</div>
+                  <div className="mt-1">Starts {entry.startsAt} Â· Expires {entry.expiresAt}</div>
+                  <button type="button" onClick={() => endBreakGlass(entry.id)} className="mt-2 rounded-lg bg-bad px-3 py-1.5 font-bold text-white">End my access</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {canReviewBreakGlass && (
+            <div className="mb-4 space-y-2">
+              <h4 className="m-0 text-xs font-bold uppercase tracking-wide text-slate">Break-glass reviews pending</h4>
+              {pendingBreakGlassReview.length === 0 ? <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">No pending review records were returned.</p> : pendingBreakGlassReview.map((entry) => {
+                const isOwnRequest = entry.userId === currentUser?.id;
+                const isReviewing = reviewingBreakGlassId === entry.id;
+                return <div key={entry.id} className="rounded-xl border border-line bg-paper p-3 text-xs text-slate">
+                  <div className="font-bold text-ink">Patient {entry.patient?.healoraCode || entry.patientId} Â· {entry.user?.name || entry.userId}</div>
+                  <div className="mt-1">{entry.reason}</div>
+                  <div className="mt-1">Starts {entry.startsAt} Â· Expires {entry.expiresAt}</div>
+                  {isOwnRequest ? <p className="mb-0 mt-2 text-warn-fg">You cannot review your own access.</p> : <>
+                    <textarea aria-label="Review notes" value={breakGlassReviewNotes[entry.id] ?? ''} onChange={(event) => setBreakGlassReviewNotes((items) => ({ ...items, [entry.id]: event.target.value }))} maxLength={2000} rows={2} placeholder="Review notes (required if not justified)" className="mt-2 w-full rounded-lg border border-line p-2" />
+                    <div className="mt-2 flex gap-2">
+                      <Button variant="secondary" disabled={isReviewing} onClick={() => reviewBreakGlass(entry, 'justified')}>{isReviewing ? 'Saving…' : 'Justified'}</Button>
+                      <Button variant="secondary" disabled={isReviewing || !breakGlassReviewNotes[entry.id]?.trim()} onClick={() => reviewBreakGlass(entry, 'not_justified')}>Not justified</Button>
+                    </div>
+                  </>}
+                </div>;
+              })}
+            </div>
+          )}
+
+          {canRequestBreakGlass ? (
+            <form onSubmit={handleBreakGlass} className="space-y-3">
+              <div className="flex gap-2">
+                <input type="tel" value={breakGlassPatientQuery} onChange={(event) => setBreakGlassPatientQuery(event.target.value)} placeholder="Patient phone" className="h-10 flex-1 rounded-xl border border-line px-3 text-sm" />
+                <Button type="button" variant="secondary" onClick={handleBreakGlassLookup}>Find patient</Button>
+              </div>
+              {breakGlassPatients.length > 0 && (
+                <label className="block text-xs font-semibold text-slate">Patient record
+                  <select required value={breakGlassPatientId} onChange={(event) => setBreakGlassPatientId(event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal">
+                    <option value="">Select patient</option>
+                    {breakGlassPatients.map((patient) => <option key={patient.id} value={patient.id}>{patient.fullName} · {patient.healoraCode}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="block text-xs font-semibold text-slate">Reason (minimum 20 characters)
+                <textarea required minLength={20} maxLength={2000} rows={3} value={breakGlassReason} onChange={(event) => setBreakGlassReason(event.target.value)} className="mt-1 w-full rounded-xl border border-line p-2.5 text-sm font-normal" />
+              </label>
+              <label className="block text-xs font-semibold text-slate">Duration in minutes
+                <input type="number" required min={5} max={240} value={breakGlassDuration} onChange={(event) => setBreakGlassDuration(Number(event.target.value))} className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal" />
+              </label>
+              <Button type="submit" variant="primary" disabled={!breakGlassPatientId}>Request access</Button>
             </form>
+          ) : (
+            <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">No break-glass request role is assigned to this account. Platform administrators can review and end active sessions.</p>
           )}
         </Card>
       </div>
-
       {/* Section 4: Accessibility & Language Mode (PRD Section 18) */}
       <div className="mb-8">
         <Card variant="card">
@@ -614,13 +651,17 @@ export const SettingsPermissionsView: React.FC = () => {
               {assignScopeType === 'hub' && hubs.length > 0 ? (
                 <select
                   value={assignScopeId}
+                  required
                   onChange={(e) => setAssignScopeId(e.target.value)}
                   className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none"
                 >
+                  <option value="">-- Choose Hub --</option>
                   {hubs.map((h) => (
                     <option key={h.id} value={h.id}>{h.name}</option>
                   ))}
                 </select>
+              ) : assignScopeType === 'hub' ? (
+                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">No hubs were returned by the backend for this account.</p>
               ) : assignScopeType === 'region' && backendRegions.length > 0 ? (
                 <select
                   value={assignScopeId}
@@ -635,14 +676,17 @@ export const SettingsPermissionsView: React.FC = () => {
                 </select>
               ) : assignScopeType === 'region' ? (
                 <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">No active operational regions available from the backend.</p>
+              ) : assignScopeType === 'session' && sessions.length > 0 ? (
+                <select value={assignScopeId} onChange={(e) => setAssignScopeId(e.target.value)} required className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none">
+                  <option value="">-- Choose Session --</option>
+                  {sessions.map((session) => <option key={session.id} value={session.id}>{session.title} · {session.date}</option>)}
+                </select>
+              ) : assignScopeType === 'session' ? (
+                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">No sessions were returned by the backend for this account.</p>
+              ) : assignScopeType === 'platform' ? (
+                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">This role applies at platform scope and does not use a target entity ID.</p>
               ) : (
-                <input
-                  type="text"
-                  placeholder="e.g. hub_dhaka_01 (optional for platform)"
-                  value={assignScopeId}
-                  onChange={(e) => setAssignScopeId(e.target.value)}
-                  className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-                />
+                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">Choose a valid scope boundary above.</p>
               )}
             </div>
           </div>
@@ -651,7 +695,7 @@ export const SettingsPermissionsView: React.FC = () => {
             <Button variant="secondary" onClick={() => setIsAssignModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" disabled={isSubmittingRole || isLoadingAssignmentOptions || !backendUsers.length || (assignScopeType === 'region' && !assignScopeId)}>
+            <Button variant="primary" type="submit" disabled={isSubmittingRole || isLoadingAssignmentOptions || !backendUsers.length || (['region', 'hub', 'session'].includes(assignScopeType) && !assignScopeId)}>
               {isSubmittingRole ? 'Assigning via API...' : 'Commit Assignment (API)'}
             </Button>
           </div>

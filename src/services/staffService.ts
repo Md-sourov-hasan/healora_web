@@ -28,7 +28,7 @@ export interface ApiUser {
   name: string;
   nameBn?: string | null;
   phone?: string | null;
-  status: 'invited' | 'active' | 'suspended' | 'disabled' | 'locked' | 'inactive';
+  status: 'invited' | 'active' | 'suspended' | 'disabled';
   mfaEnabled: boolean;
   preferredLanguage?: string;
   createdAt?: string;
@@ -46,6 +46,7 @@ export interface ApiRoleAssignment {
   status: 'active' | 'revoked' | 'expired';
   validFrom: string;
   validTo?: string | null;
+  user?: { id: string; name: string; nameBn?: string | null; status?: ApiUser['status'] };
 }
 
 export interface ApiShift {
@@ -55,11 +56,13 @@ export interface ApiShift {
   sessionId?: string | null;
   stationId?: string | null;
   role: string;
-  startTime: string; // ISO
-  endTime: string; // ISO
-  status: 'scheduled' | 'approved' | 'checked_in' | 'completed' | 'cancelled' | 'absent';
+  startsAt: string;
+  endsAt: string;
+  status: 'proposed' | 'approved' | 'checked_in' | 'checked_out' | 'cancelled' | 'absent';
   staffName?: string;
   hubName?: string;
+  user?: { id: string; name: string; nameBn?: string | null };
+  station?: { id: string; code: string; name: string } | null;
 }
 
 export const staffService = {
@@ -78,15 +81,7 @@ export const staffService = {
     return apiRequest<ApiUser>(`/admin/users/${id}`);
   },
 
-  async createUser(data: {
-    email: string;
-    name: string;
-    nameBn?: string;
-    phone?: string;
-    initialRole?: string;
-    hubId?: string;
-    regionId?: string;
-  }): Promise<ApiUser> {
+  async createUser(data: { email: string; name: string; nameBn?: string | null; phone?: string | null; preferredLanguage?: 'bn' | 'en' }): Promise<ApiUser> {
     return apiRequest<ApiUser>('/admin/users', {
       method: 'POST',
       json: data,
@@ -100,8 +95,8 @@ export const staffService = {
     });
   },
 
-  async setUserStatus(id: string, status: ApiUser['status'], reason?: string): Promise<ApiUser> {
-    return apiRequest<ApiUser>(`/admin/users/${id}/status`, {
+  async setUserStatus(id: string, status: Exclude<ApiUser['status'], 'invited'>, reason: string): Promise<{ user: ApiUser; revokedAssignments: number }> {
+    return apiRequest<{ user: ApiUser; revokedAssignments: number }>(`/admin/users/${id}/status`, {
       method: 'POST',
       json: { status, reason },
     });
@@ -111,15 +106,17 @@ export const staffService = {
     userId?: string;
     hubId?: string;
     role?: string;
-  }): Promise<ApiRoleAssignment[]> {
-    return apiRequest<ApiRoleAssignment[]>('/admin/role-assignments', {
-      params: params as Record<string, string>,
+    limit?: number;
+    offset?: number;
+  }): Promise<{ items: ApiRoleAssignment[]; limit: number; offset: number }> {
+    return apiRequest<{ items: ApiRoleAssignment[]; limit: number; offset: number }>('/admin/role-assignments', {
+      params: params as Record<string, string | number>,
     });
   },
 
   async assignRole(
     userId: string,
-    data: { role: string; scopeType: string; hubId?: string; regionId?: string }
+    data: { role: string; scopeType: 'platform' | 'region' | 'hub' | 'session'; hubId?: string; regionId?: string; sessionId?: string }
   ): Promise<ApiRoleAssignment> {
     return apiRequest<ApiRoleAssignment>(`/admin/users/${userId}/role-assignments`, {
       method: 'POST',
@@ -127,24 +124,24 @@ export const staffService = {
     });
   },
 
-  async revokeRole(roleAssignmentId: string, reason?: string): Promise<{ success: boolean }> {
+  async revokeRole(roleAssignmentId: string, reason: string): Promise<ApiRoleAssignment> {
     return apiRequest(`/admin/role-assignments/${roleAssignmentId}/revoke`, {
       method: 'POST',
       json: { reason },
     });
   },
 
-  async issueTemporaryPassword(userId: string): Promise<{ temporaryPassword: string }> {
+  async issueTemporaryPassword(userId: string, reason: string): Promise<{ temporaryPassword: string }> {
     return apiRequest(`/auth/admin/users/${userId}/temporary-password`, {
       method: 'POST',
-      json: {},
+      json: { reason },
     });
   },
 
-  async unlockUser(userId: string): Promise<{ unlocked: boolean }> {
+  async unlockUser(userId: string, reason: string): Promise<{ unlocked: boolean }> {
     return apiRequest(`/auth/admin/users/${userId}/unlock`, {
       method: 'POST',
-      json: {},
+      json: { reason },
     });
   },
 
@@ -161,19 +158,18 @@ export const staffService = {
     hubId?: string;
     sessionId?: string;
     userId?: string;
-    from?: string;
-    to?: string;
+    date?: string;
     status?: string;
-  }): Promise<ApiShift[]> {
-    return apiRequest<ApiShift[]>('/shifts', { params: params as Record<string, string> });
+  }): Promise<{ items: ApiShift[]; limit: number; offset: number }> {
+    return apiRequest<{ items: ApiShift[]; limit: number; offset: number }>('/shifts', { params: params as Record<string, string> });
   },
 
   async createShift(data: {
     userId: string;
     hubId: string;
     role: string;
-    startTime: string;
-    endTime: string;
+    startsAt: string;
+    endsAt: string;
     stationId?: string;
   }): Promise<ApiShift> {
     return apiRequest<ApiShift>('/shifts', {

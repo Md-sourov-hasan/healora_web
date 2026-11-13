@@ -25,13 +25,14 @@ export interface ApiQueueTicket {
   id: string;
   displayCode: string; // e.g. "A-001" or "W-002"
   ticketNumber: number;
-  status: 'waiting' | 'called' | 'in_service' | 'paused' | 'transferred' | 'completed' | 'no_show' | 'cancelled';
+  status: 'waiting' | 'called' | 'in_service' | 'awaiting_review' | 'transferred' | 'paused' | 'completed' | 'no_show' | 'cancelled';
   priorityLevel: number; // 0=normal, 1=urgent, 2=critical
   delayReason?: string | null;
   station?: {
     id: string;
     name: string;
-    code: string;
+    code?: string;
+    stationType?: string;
   } | null;
   issuedAt: string;
   calledAt?: string | null;
@@ -39,12 +40,11 @@ export interface ApiQueueTicket {
   waitingMinutes: number;
   encounter?: {
     id: string;
-    patientId: string;
-    patientName: string;
-    patientNameBn?: string | null;
-    patientPhone?: string;
-    serviceType?: string;
+    status?: string;
   } | null;
+  patient?: { id?: string; healoraCode: string; firstName: string } | null;
+  appointmentId?: string | null;
+  assignedStaff?: Array<{ userId: string; name?: string | null; role: string; status: string }>;
 }
 
 export interface SessionQueueResponse {
@@ -52,6 +52,13 @@ export interface SessionQueueResponse {
   lastUpdated: string;
   generatedAt: string;
   items: ApiQueueTicket[];
+}
+
+export interface WalkInResponse {
+  appointment: Record<string, unknown>;
+  encounter: { id: string; status: string };
+  ticket: ApiQueueTicket;
+  alreadyCheckedIn: boolean;
 }
 
 export interface QueueHistoryEvent {
@@ -82,12 +89,11 @@ export const queueService = {
     sessionId: string,
     data: {
       patientId: string;
-      serviceTypeId?: string;
-      priorityLevel?: number;
-      notes?: string;
+      identityConfirmed: true;
+      idempotencyKey?: string;
     }
-  ): Promise<ApiQueueTicket> {
-    return apiRequest<ApiQueueTicket>(`/sessions/${sessionId}/walk-ins`, {
+  ): Promise<WalkInResponse> {
+    return apiRequest<WalkInResponse>(`/sessions/${sessionId}/walk-ins`, {
       method: 'POST',
       json: data,
     });
@@ -96,21 +102,15 @@ export const queueService = {
   /**
    * Call a ticket to a station (e.g. flashing on display board)
    */
-  async callTicket(ticketId: string, stationId: string): Promise<ApiQueueTicket> {
-    return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/call`, {
-      method: 'POST',
-      json: { stationId },
-    });
+  async callTicket(ticketId: string, _stationId: string): Promise<ApiQueueTicket> {
+    return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/call`, { method: 'POST' });
   },
 
   /**
    * Start service for a called ticket
    */
-  async startTicket(ticketId: string, stationId: string): Promise<ApiQueueTicket> {
-    return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/start`, {
-      method: 'POST',
-      json: { stationId },
-    });
+  async startTicket(ticketId: string, _stationId: string): Promise<ApiQueueTicket> {
+    return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/start`, { method: 'POST' });
   },
 
   /**
@@ -118,7 +118,7 @@ export const queueService = {
    */
   async transferTicket(
     ticketId: string,
-    data: { targetStationId: string; reason?: string }
+    data: { stationId: string; reason?: string }
   ): Promise<ApiQueueTicket> {
     return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/transfer`, {
       method: 'POST',
@@ -129,7 +129,7 @@ export const queueService = {
   /**
    * Pause ticket (e.g. waiting for lab result or rest before BP measurement)
    */
-  async pauseTicket(ticketId: string, reason: string): Promise<ApiQueueTicket> {
+  async pauseTicket(ticketId: string, reason?: string): Promise<ApiQueueTicket> {
     return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/pause`, {
       method: 'POST',
       json: { reason },
@@ -149,30 +149,30 @@ export const queueService = {
   /**
    * Add temporary delay to ticket
    */
-  async delayTicket(ticketId: string, minutes: number, reason: string): Promise<ApiQueueTicket> {
+  async delayTicket(ticketId: string, delayReason: string | null): Promise<ApiQueueTicket> {
     return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/delay`, {
       method: 'POST',
-      json: { minutes, reason },
+      json: { delayReason },
     });
   },
 
   /**
    * Update queue ticket priority (e.g. elderly / pregnant / emergency)
    */
-  async setPriority(ticketId: string, priorityLevel: number, reason?: string): Promise<ApiQueueTicket> {
+  async setPriority(ticketId: string, policyId: string): Promise<ApiQueueTicket> {
     return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/priority`, {
       method: 'POST',
-      json: { priorityLevel, reason },
+      json: { policyId },
     });
   },
 
   /**
    * Mark ticket as no-show after multiple calls
    */
-  async markNoShow(ticketId: string): Promise<ApiQueueTicket> {
+  async markNoShow(ticketId: string, reason?: string): Promise<ApiQueueTicket> {
     return apiRequest<ApiQueueTicket>(`/queue-tickets/${ticketId}/no-show`, {
       method: 'POST',
-      json: {},
+      json: { reason },
     });
   },
 

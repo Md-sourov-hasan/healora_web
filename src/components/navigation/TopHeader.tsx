@@ -34,12 +34,13 @@ export const TopHeader: React.FC = () => {
     currentUser,
     apiStatus,
     apiLatency,
+    roleAssignments,
     setIsAuthModalOpen,
     refreshBackendData,
   } = useApp();
 
   const activeSession = sessions.find((s) => s.hubId === selectedHubId && s.status === 'in_progress');
-  const unreadNotifsCount = notifications.filter((n) => !n.acknowledged).length;
+  const unreadNotifsCount = notifications.filter((n) => n.acknowledged === false).length;
 
   const roleOptions = availableRoles.map((roleKey) => {
     const cfg = ROLES_CONFIG[roleKey];
@@ -51,7 +52,7 @@ export const TopHeader: React.FC = () => {
   });
 
   const visibleHubs = activeRole === 'regional_ops_manager'
-    ? hubs.filter((h) => h.regionId === 'reg_dhaka' || !h.regionId)
+    ? hubs.filter((hub) => roleAssignments.some((assignment) => assignment.status === 'active' && assignment.role === activeRole && assignment.regionId === hub.regionId))
     : hubs;
 
   const chip = 'inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-chip border px-3 text-[13px] font-semibold transition-all duration-150';
@@ -128,7 +129,7 @@ export const TopHeader: React.FC = () => {
               ? `API Live${apiLatency ? ` (${apiLatency}ms)` : ''}`
               : apiStatus === 'connecting'
               ? 'Connecting API...'
-              : 'API Demo / Standby'}
+              : 'API Disconnected'}
           </span>
         </button>
       </div>

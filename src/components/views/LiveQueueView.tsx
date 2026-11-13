@@ -21,7 +21,7 @@ export const LiveQueueView: React.FC = () => {
     callNextPatient,
     advanceQueueStatus,
     transferStation,
-    showToast,
+    refreshBackendData,
   } = useApp();
 
   const [activeStationFilter, setActiveStationFilter] = useState<string>('all');
@@ -65,7 +65,7 @@ export const LiveQueueView: React.FC = () => {
         <div className="flex items-center gap-3">
           <Button
             variant="secondary"
-            onClick={() => showToast('Refreshed real-time queue states from central broker.')}
+            onClick={() => void refreshBackendData()}
             icon={<PhArrowsClockwise size={16} />}
           >
             {language === 'bn' ? 'রিফ্রেশ' : 'Refresh Queue'}
@@ -100,7 +100,7 @@ export const LiveQueueView: React.FC = () => {
                 {station.name.split(':')[1] || station.name}
               </h3>
               <div className="mb-3.5 text-xs text-slate">
-                Staff: <strong className="text-ink">{station.currentStaffName}</strong>
+                Staff: <strong className="text-ink">{station.currentStaffName || 'Not assigned'}</strong>
               </div>
 
               <div className="flex items-center justify-between border-t border-line pt-3">
@@ -194,7 +194,7 @@ export const LiveQueueView: React.FC = () => {
                 {/* Patient Name & Phone (Operational Least-Privilege) */}
                 <td className="px-5 py-4">
                   <div className="text-[15px] font-semibold text-ink">
-                    {language === 'bn' ? item.patientNameBn : item.patientName}
+                    {language === 'bn' ? item.patientNameBn || item.patientName : item.patientName}
                   </div>
                   <div className="tabular-nums text-xs text-slate">
                     {item.patientPhone}
@@ -209,7 +209,7 @@ export const LiveQueueView: React.FC = () => {
 
                 {/* Service Type */}
                 <td className="px-5 py-4 text-sm text-slate">
-                  {item.serviceType}
+                  {item.serviceType || '—'}
                 </td>
 
                 {/* Wait Time */}
@@ -304,16 +304,6 @@ export const LiveQueueView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    advanceQueueStatus(selectedQueueItem.id, 'awaiting_review');
-                    setSelectedQueueItem(null);
-                  }}
-                  className="cursor-pointer rounded-chip border border-line bg-paper p-3 text-[13px] font-semibold text-warn transition hover:bg-bone"
-                >
-                  Send for Doctor Review
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
                     advanceQueueStatus(selectedQueueItem.id, 'completed');
                     setSelectedQueueItem(null);
                   }}
@@ -324,12 +314,12 @@ export const LiveQueueView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    advanceQueueStatus(selectedQueueItem.id, 'referred');
+                    advanceQueueStatus(selectedQueueItem.id, 'no_show');
                     setSelectedQueueItem(null);
                   }}
-                  className="cursor-pointer rounded-chip border border-clay bg-warn-bg p-3 text-[13px] font-semibold text-clay transition hover:opacity-90"
+                  className="cursor-pointer rounded-chip border border-line bg-paper p-3 text-[13px] font-semibold text-slate transition hover:bg-bone"
                 >
-                  Refer / Escalate
+                  Mark No-Show
                 </button>
               </div>
             </div>

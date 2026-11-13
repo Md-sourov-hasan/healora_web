@@ -268,6 +268,16 @@ export const CORE_OPERATIONS_ROLES: UserRole[] = [
   'auditor',
 ];
 
+/** Keep the product label "Auditor" while sending the backend's canonical role code. */
+export const toUiRole = (role: string): UserRole | undefined => {
+  const canonical = role === 'operations_auditor' ? 'auditor' : role;
+  return CORE_OPERATIONS_ROLES.includes(canonical as UserRole) || canonical in ROLES_CONFIG
+    ? canonical as UserRole
+    : undefined;
+};
+
+export const toApiRole = (role: string): string => role === 'auditor' ? 'operations_auditor' : role;
+
 export function isRouteAllowedForRole(route: AppRoute, role: UserRole): boolean {
   const config = ROLES_CONFIG[role];
   if (!config) return true;

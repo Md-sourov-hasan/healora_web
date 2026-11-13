@@ -15,7 +15,7 @@
  * - POST /admin/break-glass/{id}/end
  */
 
-import { apiRequest } from './apiClient';
+import { apiRequest, parseApiDate } from './apiClient';
 
 export interface DashboardOverviewResponse {
   date: string;
@@ -59,45 +59,47 @@ export interface ApiReportMeta {
 
 export interface ApiAuditEvent {
   id: string;
-  timestamp: string;
-  actorUserId: string;
-  actorName: string;
-  actorRole: string;
+  occurredAt: string;
+  actorUserId?: string | null;
+  actorName?: string | null;
+  actorRole?: string | null;
   action: string;
-  entityType: string;
-  entityId: string;
-  hubId?: string | null;
-  hubName?: string | null;
-  details?: Record<string, unknown> | string;
-  ipAddress?: string;
-  userAgent?: string;
+  targetType: string;
+  targetId?: string | null;
+  scopeHubId?: string | null;
+  hub?: { id: string; name?: string } | null;
+  metadata?: Record<string, unknown> | string | null;
+  reason?: string | null;
   outcome: 'success' | 'denied' | 'error';
 }
 
 export interface ApiNotification {
   id: string;
-  recipientUserId: string;
-  category: 'operational' | 'clinical' | 'queue' | 'sync' | 'security' | 'system';
-  title: string;
-  titleBn?: string;
-  message: string;
-  messageBn?: string;
-  severity: 'info' | 'warning' | 'alert';
-  read: boolean;
-  createdAt: string;
-  actionRoute?: string;
+  templateCode: string;
+  language: 'bn' | 'en';
+  deepLink?: string | null;
+  relatedType?: string | null;
+  relatedId?: string | null;
+  queuedAt: string;
+  status: string;
 }
 
 export interface BreakGlassLog {
   id: string;
   userId: string;
-  userName: string;
+  patientId: string;
   reason: string;
-  targetPatientId?: string;
-  targetHubId?: string;
-  startedAt: string;
+  startsAt: string;
+  expiresAt: string;
   endedAt?: string | null;
-  active: boolean;
+  reviewOutcome?: 'pending' | 'justified' | 'not_justified' | null;
+  user?: { id: string; name: string };
+  patient?: { id: string; healoraCode: string };
+}
+
+export function isBreakGlassActive(record: BreakGlassLog): boolean {
+  const expiration = parseApiDate(record.expiresAt);
+  return !record.endedAt && Boolean(expiration && expiration.getTime() > Date.now());
 }
 
 export const reportsAuditService = {
@@ -116,15 +118,15 @@ export const reportsAuditService = {
 
   // ---- REPORTS & EXPORTS ----
 
-  async getReports(): Promise<ApiReportMeta[]> {
-    return apiRequest<ApiReportMeta[]>('/reports');
+  async getReports(): Promise<{ reports: string[]; maxRangeDays: number; note: string }> {
+    return apiRequest('/reports');
   },
 
   async getReportData(code: string, params?: Record<string, string>): Promise<unknown> {
     return apiRequest(`/reports/${code}`, { params });
   },
 
-  async requestExport(data: { reportCode: string; format: 'csv'; parameters?: Record<string, unknown> }): Promise<{ exportId: string }> {
+  async requestExport(data: { reportCode: string; from: string; to: string; hubId?: string; regionId?: string; purpose: string; patientLevel?: boolean }): Promise<{ id: string; status: string; reportCode: string }> {
     return apiRequest('/exports', {
       method: 'POST',
       json: data,
@@ -140,12 +142,12 @@ export const reportsAuditService = {
   async getAuditEvents(params?: {
     limit?: number;
     offset?: number;
-    entityType?: string;
-    entityId?: string;
+    targetType?: string;
+    targetId?: string;
     actorUserId?: string;
     from?: string;
     to?: string;
-  }): Promise<{ items: ApiAuditEvent[]; total?: number; limit: number; offset: number }> {
+  }): Promise<ApiAuditEvent[]> {
     return apiRequest('/audit-events', {
       params: params as Record<string, string | number>,
     });
@@ -156,13 +158,13 @@ export const reportsAuditService = {
   async getNotifications(params?: {
     limit?: number;
     offset?: number;
-  }): Promise<{ items: ApiNotification[]; unreadCount: number }> {
+  }): Promise<ApiNotification[]> {
     return apiRequest('/notifications', {
       params: params as Record<string, string | number>,
     });
   },
 
-  async markNotificationRead(id: string): Promise<{ success: boolean }> {
+  async markNotificationRead(id: string): Promise<void> {
     return apiRequest(`/notifications/${id}/read`, {
       method: 'POST',
       json: {},
@@ -172,9 +174,9 @@ export const reportsAuditService = {
   // ---- BREAK-GLASS ACCESS ----
 
   async requestBreakGlass(data: {
+    patientId: string;
     reason: string;
-    targetPatientId?: string;
-    targetHubId?: string;
+    durationMinutes?: number;
   }): Promise<BreakGlassLog> {
     return apiRequest<BreakGlassLog>('/admin/break-glass', {
       method: 'POST',
@@ -182,14 +184,25 @@ export const reportsAuditService = {
     });
   },
 
-  async getBreakGlassList(): Promise<BreakGlassLog[]> {
-    return apiRequest<BreakGlassLog[]>('/admin/break-glass');
+  async getBreakGlassList(): Promise<{ items: BreakGlassLog[] }> {
+    return apiRequest<{ items: BreakGlassLog[] }>('/admin/break-glass');
+  },
+
+  async getMyBreakGlass(): Promise<{ items: BreakGlassLog[] }> {
+    return apiRequest<{ items: BreakGlassLog[] }>('/admin/break-glass/mine');
   },
 
   async endBreakGlass(id: string): Promise<void> {
     return apiRequest(`/admin/break-glass/${id}/end`, {
       method: 'POST',
       json: {},
+    });
+  },
+
+  async reviewBreakGlass(id: string, outcome: 'justified' | 'not_justified', notes?: string): Promise<BreakGlassLog> {
+    return apiRequest<BreakGlassLog>(`/admin/break-glass/${id}/review`, {
+      method: 'POST',
+      json: { outcome, notes },
     });
   },
 };

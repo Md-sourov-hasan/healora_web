@@ -18,9 +18,11 @@ export const ExceptionsEscalationsView: React.FC = () => {
     exceptions,
     selectedHubId,
     hubs,
-    retrySyncEncounter,
     resolveException,
-    showToast,
+    acknowledgeException,
+    escalateException,
+    dismissException,
+    refreshBackendData,
   } = useApp();
 
   const [severityFilter, setSeverityFilter] = useState<string>('all');
@@ -38,7 +40,8 @@ export const ExceptionsEscalationsView: React.FC = () => {
   const handleResolveSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedException) return;
-    resolveException(selectedException.id, resolutionNotes || 'Resolved by operational supervisor.');
+    if (!resolutionNotes.trim()) return;
+    void resolveException(selectedException.id, resolutionNotes.trim());
     setIsResolveModalOpen(false);
     setSelectedException(null);
     setResolutionNotes('');
@@ -78,7 +81,7 @@ export const ExceptionsEscalationsView: React.FC = () => {
 
         <Button
           variant="secondary"
-          onClick={() => showToast('Refreshed operational exception queues.')}
+          onClick={() => void refreshBackendData()}
           icon={<PhArrowsClockwise size={16} />}
         >
           {language === 'bn' ? 'রিফ্রেশ' : 'Refresh Queues'}
@@ -86,7 +89,7 @@ export const ExceptionsEscalationsView: React.FC = () => {
       </div>
 
       {/* Emergency Facility Reference Card (PRD Section 8.3 & 13.3) */}
-      <div className="mb-6 rounded-2xl border border-bad/30 bg-bad-bg/40 p-4.5">
+      {(currentHub?.emergencyReferralFacility || currentHub?.emergencyPhone) && <div className="mb-6 rounded-2xl border border-bad/30 bg-bad-bg/40 p-4.5">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-bad text-white">
@@ -94,26 +97,20 @@ export const ExceptionsEscalationsView: React.FC = () => {
             </div>
             <div>
               <div className="text-xs font-bold uppercase tracking-wider text-bad-fg">
-                Emergency Referral Facility On Standby (PRD Section 13.3 SOP)
+                Emergency referral contact from hub record
               </div>
               <h3 className="m-0 text-base font-bold text-ink">
-                {currentHub?.emergencyReferralFacility || 'District General Hospital'}
+                {currentHub?.emergencyReferralFacility}
               </h3>
               <div className="text-xs text-slate">
-                Direct Emergency Line: <strong className="text-bad">{currentHub?.emergencyPhone || '+880 1700-000000'}</strong> • Nearest ambulance dispatch
+                {currentHub?.emergencyPhone && <>Phone: <strong className="text-bad">{currentHub.emergencyPhone}</strong></>}
               </div>
             </div>
           </div>
 
-          <Button
-            variant="secondary"
-            onClick={() => showToast(`Emergency contact dialed: ${currentHub?.emergencyPhone || '+880 1700-000000'}`)}
-            className="text-bad! border-bad/40!"
-          >
-            Summon Emergency Contact
-          </Button>
+          {currentHub?.emergencyPhone && <a href={`tel:${currentHub.emergencyPhone}`} className="rounded-xl border border-bad/40 bg-paper px-3 py-2 text-sm font-semibold text-bad">Call hub referral contact</a>}
         </div>
-      </div>
+      </div>}
 
       {/* KPI Severity Stat Cards */}
       <div className="mb-7 grid grid-cols-4 gap-4">
@@ -125,21 +122,21 @@ export const ExceptionsEscalationsView: React.FC = () => {
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Critical Safety Alerts</div>
           <div className="mt-1 text-3xl font-bold text-bad">
-            {hubExceptions.filter((e) => e.severity === 'critical' && e.status !== 'resolved').length}
+            {hubExceptions.filter((e) => e.severity === 'critical' && !['resolved', 'dismissed'].includes(e.status)).length}
           </div>
           <div className="mt-1 text-xs text-bad">Requires immediate supervision</div>
         </Card>
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Sync &amp; Wait Warnings</div>
           <div className="mt-1 text-3xl font-bold text-amber">
-            {hubExceptions.filter((e) => e.severity === 'warning' && e.status !== 'resolved').length}
+            {hubExceptions.filter((e) => e.severity === 'warning' && !['resolved', 'dismissed'].includes(e.status)).length}
           </div>
           <div className="mt-1 text-xs text-amber font-semibold">Offline outbox or SLA breach</div>
         </Card>
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Resolved Today</div>
           <div className="mt-1 text-3xl font-bold text-ok">
-            {hubExceptions.filter((e) => e.status === 'resolved').length}
+            {hubExceptions.filter((e) => ['resolved', 'dismissed'].includes(e.status)).length}
           </div>
           <div className="mt-1 text-xs text-slate">Handled with audit confirmation</div>
         </Card>
@@ -178,7 +175,7 @@ export const ExceptionsEscalationsView: React.FC = () => {
             key={item.id}
             variant="card"
             className={`border-l-4! ${
-              item.status === 'resolved'
+              ['resolved', 'dismissed'].includes(item.status)
                 ? 'border-l-ok! opacity-60'
                 : item.severity === 'critical'
                 ? 'border-l-bad!'
@@ -194,7 +191,7 @@ export const ExceptionsEscalationsView: React.FC = () => {
                   {getSeverityBadge(item.severity)}
                   <StatusPill
                     label={item.status.toUpperCase()}
-                    variant={item.status === 'resolved' ? 'completed' : 'draft'}
+                    variant={['resolved', 'dismissed'].includes(item.status) ? 'completed' : 'draft'}
                   />
                   <span className="text-xs text-slate">• Logged {item.createdAt}</span>
                 </div>
@@ -216,17 +213,27 @@ export const ExceptionsEscalationsView: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="flex flex-col items-end gap-2">
-                {item.status !== 'resolved' ? (
+                {!['resolved', 'dismissed'].includes(item.status) ? (
                   <>
-                    {item.category === 'sync_error' && item.encounterId && (
+                    {item.status === 'open' && (
                       <button
                         type="button"
-                        onClick={() => retrySyncEncounter(item.encounterId!)}
+                        onClick={() => void acknowledgeException(item.id)}
                         className="cursor-pointer rounded-xl bg-teal px-3 py-1.5 text-xs font-semibold text-white hover:bg-pine"
                       >
-                        Retry Server Sync
+                        Acknowledge
                       </button>
                     )}
+
+                    <button type="button" onClick={() => {
+                      const note = window.prompt('Enter the escalation note:');
+                      if (note?.trim()) void escalateException(item.id, item.category === 'clinical_escalation' ? 'clinical_operations' : 'regional_operations', note.trim());
+                    }} className="cursor-pointer rounded-xl border border-warn bg-paper px-3 py-1.5 text-xs font-semibold text-warn-fg">Escalate</button>
+
+                    <button type="button" onClick={() => {
+                      const reason = window.prompt('Enter the reason for dismissing this exception:');
+                      if (reason?.trim()) void dismissException(item.id, reason.trim());
+                    }} className="cursor-pointer rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-slate">Dismiss</button>
 
                     <button
                       type="button"

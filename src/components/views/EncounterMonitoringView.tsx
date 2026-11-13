@@ -19,8 +19,8 @@ export const EncounterMonitoringView: React.FC = () => {
     selectedHubId,
     hubs,
     staff,
-    retrySyncEncounter,
     reassignEncounter,
+    refreshBackendData,
     showToast,
   } = useApp();
 
@@ -45,7 +45,7 @@ export const EncounterMonitoringView: React.FC = () => {
     return matchStatus && matchSync && matchSearch;
   });
 
-  const getSyncStateBadge = (sync: SyncState) => {
+  const getSyncStateBadge = (sync?: SyncState) => {
     switch (sync) {
       case 'synced':
         return <StatusPill label="ACKNOWLEDGED (SYNCED)" variant="completed" />;
@@ -55,6 +55,10 @@ export const EncounterMonitoringView: React.FC = () => {
         return <StatusPill label="RETRYING SYNC..." variant="draft" />;
       case 'sync_failed':
         return <StatusPill label="SYNC FAILED" variant="cancelled" />;
+      case 'none':
+        return <StatusPill label="NO SYNC REQUIRED" variant="draft" />;
+      case undefined:
+        return <StatusPill label="NOT REPORTED" variant="draft" />;
       default:
         return <StatusPill label={sync} variant="draft" />;
     }
@@ -63,7 +67,12 @@ export const EncounterMonitoringView: React.FC = () => {
   const handleReassignSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEncounter || !newAssignedStaff) return;
-    reassignEncounter(selectedEncounter.id, newAssignedStaff);
+    const assignee = staff.find((member) => member.id === newAssignedStaff);
+    if (!assignee || !['field_health_worker', 'local_doctor', 'registered_doctor', 'special_team_lead'].includes(assignee.role)) {
+      showToast('Choose a clinical staff account with an API role assignment.');
+      return;
+    }
+    reassignEncounter(selectedEncounter.id, assignee.id, assignee.role as 'field_health_worker' | 'local_doctor' | 'registered_doctor' | 'special_team_lead');
     setIsReassignOpen(false);
   };
 
@@ -90,7 +99,7 @@ export const EncounterMonitoringView: React.FC = () => {
 
         <Button
           variant="secondary"
-          onClick={() => showToast('Encounter operational status refreshed.')}
+          onClick={() => void refreshBackendData()}
           icon={<PhArrowsClockwise size={16} />}
         >
           {language === 'bn' ? 'রিফ্রেশ' : 'Refresh Encounters'}
@@ -129,7 +138,7 @@ export const EncounterMonitoringView: React.FC = () => {
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Pending Mobile Outbox</div>
           <div className="mt-1 text-3xl font-bold text-amber">
-            {hubEncounters.filter((e) => e.syncState !== 'synced').length}
+            {hubEncounters.filter((e) => ['pending_local', 'sync_failed', 'retrying'].includes(e.syncState ?? '')).length}
           </div>
           <div className="mt-1 text-xs text-amber font-semibold">Offline captures awaiting sync</div>
         </Card>
@@ -221,15 +230,21 @@ export const EncounterMonitoringView: React.FC = () => {
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
-                    <div className="h-2 w-16 overflow-hidden rounded-full bg-line">
-                      <div
-                        className={`h-full ${enc.completenessPercentage === 100 ? 'bg-ok' : 'bg-amber'}`}
-                        style={{ width: `${enc.completenessPercentage}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-bold text-ink">{enc.completenessPercentage}%</span>
+                    {enc.completenessPercentage == null ? (
+                      <span className="text-xs text-slate">Not reported</span>
+                    ) : (
+                      <>
+                        <div className="h-2 w-16 overflow-hidden rounded-full bg-line">
+                          <div
+                            className={`h-full ${enc.completenessPercentage === 100 ? 'bg-ok' : 'bg-amber'}`}
+                            style={{ width: `${enc.completenessPercentage}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-ink">{enc.completenessPercentage}%</span>
+                      </>
+                    )}
                   </div>
-                  {enc.missingObservationsCount > 0 && (
+                  {enc.missingObservationsCount != null && enc.missingObservationsCount > 0 && (
                     <div className="text-[11px] font-semibold text-amber">
                       {enc.missingObservationsCount} protocol items missing
                     </div>
@@ -254,15 +269,6 @@ export const EncounterMonitoringView: React.FC = () => {
                     >
                       Inspect
                     </button>
-                    {enc.syncState !== 'synced' && (
-                      <button
-                        type="button"
-                        onClick={() => retrySyncEncounter(enc.id)}
-                        className="cursor-pointer rounded-md bg-warn-bg px-2 py-1 text-xs font-bold text-warn-fg"
-                      >
-                        Retry Sync
-                      </button>
-                    )}
                   </div>
                 </td>
               </tr>
@@ -291,21 +297,23 @@ export const EncounterMonitoringView: React.FC = () => {
               <div className="text-xs text-slate">
                 Assigned Health Worker: <strong>{selectedEncounter.assignedWorkerName}</strong>
               </div>
-              <div className="text-xs text-slate">
-                Idempotency Key: <span className="font-mono">{selectedEncounter.idempotencyKey}</span>
-              </div>
+              {selectedEncounter.idempotencyKey && <div className="text-xs text-slate">Idempotency Key: <span className="font-mono">{selectedEncounter.idempotencyKey}</span></div>}
             </div>
 
             {/* Read-only Observations Summary */}
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <h4 className="m-0 text-xs font-bold uppercase tracking-wider text-slate">
-                  Mobile Submitted Observations ({selectedEncounter.observations.length})
+                  Mobile Submitted Observations ({selectedEncounter.observations?.length ?? 'not included'})
                 </h4>
-                <span className="text-[11px] text-teal font-semibold">Attested via Special Team App</span>
+                {selectedEncounter.observations && <span className="text-[11px] text-teal font-semibold">Attested via Special Team App</span>}
               </div>
 
-              {selectedEncounter.observations.length === 0 ? (
+              {!selectedEncounter.observations ? (
+                <div className="rounded-xl border border-dashed border-line p-4 text-center text-xs text-slate">
+                  Observation details are not included in the operational summary returned by the API.
+                </div>
+              ) : selectedEncounter.observations.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-line p-4 text-center text-xs text-slate">
                   No vitals observations submitted yet for this encounter.
                 </div>
@@ -355,18 +363,6 @@ export const EncounterMonitoringView: React.FC = () => {
               >
                 Reassign to Different Worker
               </Button>
-              {selectedEncounter.syncState !== 'synced' && (
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    retrySyncEncounter(selectedEncounter.id);
-                    setSelectedEncounter(null);
-                  }}
-                  className="w-full"
-                >
-                  Retry Sync Now
-                </Button>
-              )}
             </div>
           </div>
         </ModalSheet>
@@ -380,7 +376,7 @@ export const EncounterMonitoringView: React.FC = () => {
       >
         <form onSubmit={handleReassignSubmit} className="space-y-4">
           <div className="text-xs text-slate">
-            Select a verified health worker or doctor present at this hub to take over encounter <strong className="text-ink">{selectedEncounter?.encounterCode}</strong>.
+            Select an API assigned clinical staff account for encounter <strong className="text-ink">{selectedEncounter?.encounterCode}</strong>.
           </div>
 
           <div>
@@ -393,9 +389,9 @@ export const EncounterMonitoringView: React.FC = () => {
             >
               <option value="">Select staff...</option>
               {staff
-                .filter((s) => s.role === 'field_health_worker' || s.role === 'local_doctor')
+                .filter((s) => ['field_health_worker', 'local_doctor', 'registered_doctor', 'special_team_lead'].includes(s.role))
                 .map((s) => (
-                  <option key={s.id} value={`${s.fullName} (${s.roleTitle})`}>
+                  <option key={s.id} value={s.id}>
                     {s.fullName} — {s.roleTitle}
                   </option>
                 ))}

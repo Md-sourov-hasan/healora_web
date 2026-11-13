@@ -20,8 +20,9 @@ export const EquipmentView: React.FC = () => {
     selectedHubId,
     hubs,
     toggleEquipmentStatus,
+    recordEquipmentService,
     addEquipment,
-    showToast,
+    refreshBackendData,
   } = useApp();
 
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -29,9 +30,11 @@ export const EquipmentView: React.FC = () => {
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
   const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(false);
   const [maintenanceNotes, setMaintenanceNotes] = useState('');
+  const [calibrationNextDue, setCalibrationNextDue] = useState('');
 
   // Add form states
-  const [deviceName, setDeviceName] = useState('');
+  const [deviceAssetTag, setDeviceAssetTag] = useState('');
+  const [deviceMake, setDeviceMake] = useState('');
   const [deviceCategory, setDeviceCategory] = useState<EquipmentCategory>('bp_monitor');
   const [deviceModel, setDeviceModel] = useState('');
   const [deviceSerial, setDeviceSerial] = useState('');
@@ -45,31 +48,25 @@ export const EquipmentView: React.FC = () => {
     ? hubEquipment
     : hubEquipment.filter((eq) => eq.category === categoryFilter);
 
-  const handleCreateDevice = (e: React.FormEvent) => {
+  const handleCreateDevice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deviceName.trim()) return;
-    const targetStation = hubStations.find((s) => s.id === deviceStationId);
-    const generatedSerial = deviceSerial.trim() || 'SN-8820';
-    addEquipment({
-      name: deviceName,
+    if (!deviceAssetTag.trim()) return;
+    const ok = await addEquipment({
+      code: deviceAssetTag,
+      name: deviceMake,
       category: deviceCategory,
-      model: deviceModel || 'Clinical Grade Standard',
-      serialNumber: generatedSerial,
+      model: deviceModel,
+      serialNumber: deviceSerial,
       stationId: deviceStationId || undefined,
-      stationName: targetStation?.name || undefined,
     });
-    setDeviceName('');
-    setDeviceModel('');
-    setDeviceSerial('');
-    setIsAddDeviceOpen(false);
+    if (ok) { setDeviceAssetTag(''); setDeviceMake(''); setDeviceModel(''); setDeviceSerial(''); setDeviceStationId(''); setIsAddDeviceOpen(false); }
   };
 
-  const handleRecordMaintenance = (e: React.FormEvent) => {
+  const handleRecordMaintenance = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDevice) return;
-    toggleEquipmentStatus(selectedDevice.id, 'available');
-    showToast(`Recalibration certified for device ${selectedDevice.code}. Marked available.`);
-    setIsMaintenanceOpen(false);
+    const ok = await recordEquipmentService(selectedDevice.id, { kind: 'calibration', notes: maintenanceNotes, nextDueOn: calibrationNextDue || undefined });
+    if (ok) { setIsMaintenanceOpen(false); setMaintenanceNotes(''); setCalibrationNextDue(''); }
   };
 
   const getStatusBadge = (status: EquipmentStatus) => {
@@ -104,7 +101,7 @@ export const EquipmentView: React.FC = () => {
             {t.navEquipment}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub?.name || 'Healora Hub'} • {language === 'bn'
+            {currentHub?.name || 'Selected hub'} • {language === 'bn'
               ? 'পরিমাপ ডিভাইসের নিয়মিত ক্যালিব্রেশন, ব্যাটারি স্বাস্থ্য ও ব্যবহারযোগ্যতা স্থিতি'
               : 'Medical device calibration logs, serial attributions & session readiness safeguards'}
           </p>
@@ -113,10 +110,10 @@ export const EquipmentView: React.FC = () => {
         <div className="flex items-center gap-3">
           <Button
             variant="secondary"
-            onClick={() => showToast('Biomedical engineer maintenance schedule requested.')}
+            onClick={() => void refreshBackendData()}
             icon={<PhArrowsClockwise size={16} />}
           >
-            {language === 'bn' ? 'ক্যালিব্রেশন রিপোর্ট' : 'Calibration Report'}
+            {language === 'bn' ? 'ক্যালিব্রেশন রিপোর্ট' : 'Refresh Equipment'}
           </Button>
           <Button
             variant="primary"
@@ -218,20 +215,20 @@ export const EquipmentView: React.FC = () => {
                     <div className="font-mono text-xs text-teal">{device.code} • SN: {device.serialNumber}</div>
                   </td>
                   <td className="px-5 py-4 text-xs">
-                    <div className="font-medium text-ink">{device.model}</div>
+                    <div className="font-medium text-ink">{device.model || '—'}</div>
                     <div className="text-slate">{device.category.replace('_', ' ').toUpperCase()}</div>
                   </td>
                   <td className="px-5 py-4 text-xs font-medium text-slate">
-                    {device.stationName || 'Storage Depot (Unassigned)'}
+                    {device.stationName || 'Unassigned'}
                   </td>
                   <td className="px-5 py-4 text-xs">
                     <div className={isOverdue ? 'font-bold text-bad' : 'text-slate'}>
-                      {device.nextCalibrationDue}
+                      {device.nextCalibrationDue || 'Not reported'}
                     </div>
-                    <div className="text-[11px] text-slate">Last: {device.lastCalibrationDate}</div>
+                    <div className="text-[11px] text-slate">Last: {device.lastCalibrationDate || 'Not reported'}</div>
                   </td>
                   <td className="px-5 py-4 text-xs font-medium">
-                    <div className="flex items-center gap-1.5">
+                    {device.batteryPercent == null ? <span className="text-xs text-slate">Not reported</span> : <div className="flex items-center gap-1.5">
                       <div className="h-2 w-10 overflow-hidden rounded-full bg-line">
                         <div
                           className={`h-full ${device.batteryPercent > 50 ? 'bg-ok' : device.batteryPercent > 20 ? 'bg-amber' : 'bg-bad'}`}
@@ -239,7 +236,7 @@ export const EquipmentView: React.FC = () => {
                         />
                       </div>
                       <span className="text-xs text-slate">{device.batteryPercent}%</span>
-                    </div>
+                    </div>}
                   </td>
                   <td className="px-5 py-4">
                     {getStatusBadge(device.status)}
@@ -269,12 +266,10 @@ export const EquipmentView: React.FC = () => {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          toggleEquipmentStatus(
-                            device.id,
-                            device.status === 'out_of_service' ? 'available' : 'out_of_service'
-                          )
-                        }
+                        onClick={() => {
+                          const reason = window.prompt('Enter a reason for this equipment status change:');
+                          if (reason?.trim()) void toggleEquipmentStatus(device.id, device.status === 'out_of_service' ? 'available' : 'out_of_service', reason.trim());
+                        }}
                         className={`cursor-pointer rounded-md border px-2 py-1 text-[11px] font-semibold ${
                           device.status === 'out_of_service'
                             ? 'border-ok text-ok bg-paper hover:bg-ok-bg'
@@ -300,13 +295,13 @@ export const EquipmentView: React.FC = () => {
       >
         <form onSubmit={handleCreateDevice} className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Device Name &amp; Brand</label>
+            <label className="mb-1 block text-xs font-semibold text-slate">Asset tag *</label>
             <input
               type="text"
               required
-              value={deviceName}
-              onChange={(e) => setDeviceName(e.target.value)}
-              placeholder="e.g. Omron HEM-7120 Digital BP Monitor"
+              value={deviceAssetTag}
+              onChange={(e) => setDeviceAssetTag(e.target.value)}
+              placeholder="Unique inventory asset tag"
               className="h-10 w-full rounded-xl border border-line px-3 text-sm"
             />
           </div>
@@ -322,19 +317,27 @@ export const EquipmentView: React.FC = () => {
                 <option value="bp_monitor">Digital BP Monitor</option>
                 <option value="glucometer">Glucometer</option>
                 <option value="pulse_oximeter">Pulse Oximeter (SpO2)</option>
-                <option value="weight_scale">Medical Scale</option>
-                <option value="ecg_device">12-Channel Tele-ECG</option>
+                <option value="weighing_scale">Medical Scale</option>
+                <option value="stadiometer">Stadiometer</option>
+                <option value="thermometer">Thermometer</option>
+                <option value="tablet">Tablet</option>
+                <option value="printer">Printer</option>
+                <option value="other">Other</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Model Number</label>
+              <label className="mb-1 block text-xs font-semibold text-slate">Manufacturer / make</label>
               <input
                 type="text"
-                value={deviceModel}
-                onChange={(e) => setDeviceModel(e.target.value)}
-                placeholder="e.g. HEM-7120 Clinical"
+                value={deviceMake}
+                onChange={(e) => setDeviceMake(e.target.value)}
+                placeholder="Manufacturer"
                 className="h-10 w-full rounded-xl border border-line px-3 text-sm"
               />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate">Model number</label>
+              <input type="text" value={deviceModel} onChange={(e) => setDeviceModel(e.target.value)} className="h-10 w-full rounded-xl border border-line px-3 text-sm" />
             </div>
           </div>
 
@@ -385,29 +388,29 @@ export const EquipmentView: React.FC = () => {
                 {getStatusBadge(selectedDevice.status)}
               </div>
               <div className="mt-2 text-sm text-ink">
-                Serial Number: <strong>{selectedDevice.serialNumber}</strong>
+                Serial Number: <strong>{selectedDevice.serialNumber || 'Not reported'}</strong>
               </div>
               <div className="text-xs text-slate">
-                Model: {selectedDevice.model}
+                Model: {selectedDevice.model || 'Not reported'}
               </div>
             </div>
 
             <div className="rounded-xl border border-line p-3.5 text-xs space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate">Station Placement:</span>
-                <strong className="text-ink">{selectedDevice.stationName || 'Depot'}</strong>
+                <strong className="text-ink">{selectedDevice.stationName || 'Unassigned'}</strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate">Last Calibration Date:</span>
-                <span className="font-semibold text-ink">{selectedDevice.lastCalibrationDate}</span>
+                <span className="font-semibold text-ink">{selectedDevice.lastCalibrationDate || 'Not reported'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate">Next Calibration Due:</span>
-                <span className="font-semibold text-bad">{selectedDevice.nextCalibrationDue}</span>
+                <span className="font-semibold text-bad">{selectedDevice.nextCalibrationDue || 'Not reported'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate">Internal Battery:</span>
-                <span className="font-semibold text-ink">{selectedDevice.batteryPercent}%</span>
+                <span className="font-semibold text-ink">{selectedDevice.batteryPercent == null ? 'Not reported' : `${selectedDevice.batteryPercent}%`}</span>
               </div>
             </div>
 
@@ -448,14 +451,19 @@ export const EquipmentView: React.FC = () => {
               required
               value={maintenanceNotes}
               onChange={(e) => setMaintenanceNotes(e.target.value)}
-              placeholder="e.g. Standard manometer column benchmark test passed within +/- 2 mmHg tolerance margin."
+              placeholder="Describe the calibration work performed and its outcome."
               className="w-full rounded-xl border border-line p-3 text-sm"
             />
           </div>
 
+          <label className="block text-xs font-semibold text-slate">
+            Next calibration due date
+            <input type="date" value={calibrationNextDue} onChange={(e) => setCalibrationNextDue(e.target.value)} className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal" />
+          </label>
+
           <div className="flex justify-end gap-2 pt-3">
             <Button variant="secondary" onClick={() => setIsMaintenanceOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Certify &amp; Reopen Device</Button>
+            <Button variant="primary" type="submit">Record Calibration Event</Button>
           </div>
         </form>
       </ModalSheet>

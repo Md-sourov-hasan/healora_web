@@ -1,22 +1,9 @@
-/**
- * Healora Data Mappers
- * Converts backend API entities to frontend React types seamlessly.
- */
+/** Maps only values returned by the backend. Missing API fields stay empty. */
 
 import type {
-  Hub,
-  HubSession,
-  HubAppointment,
-  QueueItem,
-  Patient,
-  HubStation,
-  HubEquipment,
-  StaffMember,
-  Encounter,
-  Region,
-  AppNotification,
-  OperationalException,
-  AuditEvent,
+  Hub, HubSession, HubAppointment, QueueItem, Patient, HubStation,
+  HubEquipment, StaffMember, Encounter, Region, CatchmentArea,
+  AppNotification, OperationalException, AuditEvent,
 } from '../types';
 import type { ApiHub } from './hubsService';
 import type { ApiRegion } from './regionsService';
@@ -28,326 +15,180 @@ import type { ApiStation, ApiEquipment } from './stationsEquipmentService';
 import type { ApiUser, ApiShift } from './staffService';
 import type { ApiEncounterOperational, ApiOperationalException } from './encountersExceptionsService';
 import type { ApiAuditEvent, ApiNotification } from './reportsAuditService';
+import { toUiRole } from '../config/rolesConfig';
+import { parseApiDate } from './apiClient';
 
-export function mapApiHubToHub(apiHub: ApiHub): Hub {
+const value = (v: string | null | undefined): string => v ?? '';
+export const formatApiTime = (v: string | null | undefined): string => {
+  const date = parseApiDate(v);
+  return date ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date) : '';
+};
+
+export function mapApiHubToHub(a: ApiHub): Hub {
   return {
-    id: apiHub.id,
-    code: apiHub.code,
-    name: apiHub.name,
-    nameBn: apiHub.nameBn || apiHub.name,
-    status: apiHub.status,
-    regionId: apiHub.regionId || 'reg_dhaka',
-    division: 'Dhaka',
-    district: 'Dhaka',
-    upazila: 'Savar',
-    unionName: 'Savar Sadar',
-    address: apiHub.addressLine || 'Savar, Dhaka',
-    addressBn: 'সাভার, ঢাকা',
-    phone: apiHub.contactPhone || '+8801710000000',
-    operatingHours: '08:00 - 17:00 (Sat-Thu)',
-    services: ['NCD Screening', 'Basic Vitals', 'Telemedicine Doctor Review'],
-    assignedManager: 'Kamrul Hassan',
-    emergencyReferralFacility: 'Savar Upazila Health Complex (UHC)',
-    emergencyPhone: '+8801711999888',
-    capacityPerDay: 60,
-    activeSessionsToday: 1,
-    openStationsCount: 4,
-    totalDevicesCount: 12,
+    id: a.id, code: a.code, name: a.name, nameBn: value(a.nameBn), status: a.status,
+    regionId: a.regionId,
+    address: value(a.addressLine), addressBn: value(a.addressLineBn), phone: value(a.contactPhone),
+    services: a.serviceOfferings?.map((x) => x.serviceType?.name).filter((x): x is string => Boolean(x)) ?? [],
+    assignedManager: value(a.manager?.name), emergencyReferralFacility: value(a.nearestReferralFacility),
+    emergencyPhone: value(a.referralFacilityPhone ?? a.emergencyContactPhone),
   };
 }
 
-export function mapApiRegionToRegion(apiRegion: ApiRegion): Region {
+export function mapApiRegionToRegion(a: ApiRegion): Region {
   return {
-    id: apiRegion.id,
-    code: apiRegion.code,
-    name: apiRegion.name,
-    nameBn: apiRegion.nameBn || apiRegion.name,
-    division: 'Dhaka',
-    regionalManagerName: 'Tariqul Islam',
-    regionalManagerPhone: '+8801712000001',
-    totalHubsCount: apiRegion.assignedHubCount ?? 1,
-    activeHubsCount: apiRegion.assignedHubCount ?? 1,
-    catchmentPopulation: apiRegion.catchmentPopulation ?? 150000,
-    districts: ['Dhaka', 'Gazipur'],
-    catchmentUnions: ['Savar', 'Ashulia', 'Dhamrai'],
-    status: apiRegion.active ? 'active' : 'expansion_planned',
+    id: a.id, code: a.code, name: a.name, level: a.level, nameBn: value(a.nameBn),
+    totalHubsCount: a.assignedHubCount,
+    activeHubsCount: a.activeHubCount, catchmentPopulation: a.catchmentPopulation,
+    status: a.active ? 'active' : 'inactive',
   };
 }
 
-export function mapApiSessionToSession(apiSession: ApiSession, hubName = 'Healora Hub Savar'): HubSession {
+export function mapApiCatchmentToCatchment(a: { id: string; regionId: string; hubId: string; region?: { name?: string | null; code?: string | null } | null; hub?: { name?: string | null } | null }): CatchmentArea {
   return {
-    id: apiSession.id,
-    hubId: apiSession.hubId,
-    hubName,
-    title: apiSession.title || 'General Community Health Clinic',
-    titleBn: apiSession.titleBn || 'সাধারণ স্বাস্থ্য সেবা ক্যাম্প',
-    serviceType: 'basic_vitals',
-    date: apiSession.date,
-    startTime: apiSession.startTime,
-    endTime: apiSession.endTime,
-    sessionType: apiSession.sessionType === 'special_camp' ? 'special_camp' : 'standard_clinic',
-    status: apiSession.status,
-    bookedCount: apiSession.capacityBooked,
-    totalCapacity: apiSession.capacityTotal,
-    walkInCapacity: apiSession.capacityWalkIn,
-    walkInUsed: Math.min(apiSession.capacityWalkIn, 4),
-    teamLeadId: 'stf_01',
-    teamLeadName: 'Dr. Arjun Mehta',
-    healthWorkersCount: 3,
-    doctorsCount: 1,
-    requiredEquipmentReady: true,
-    minimumStaffReady: true,
+    id: a.id, regionId: a.regionId, hubId: a.hubId,
+    hubName: value(a.hub?.name), name: value(a.region?.name), nameBn: '', upazila: '',
   };
 }
 
-export function mapApiAppointmentToAppointment(apiApt: ApiAppointment): HubAppointment {
+export function mapApiSessionToSession(a: ApiSession, hubName = ''): HubSession {
   return {
-    id: apiApt.id,
-    appointmentCode: apiApt.code || `APT-${apiApt.id.slice(0, 6).toUpperCase()}`,
-    patientId: apiApt.patientId,
-    patientName: apiApt.patient?.fullName || 'Registered Patient',
-    patientNameBn: apiApt.patient?.fullNameBn || 'নিবন্ধিত রোগী',
-    patientPhone: apiApt.patient?.phone || '01700000000',
-    hubId: apiApt.hubId,
-    hubName: 'Healora Hub Savar',
-    sessionId: apiApt.sessionId,
-    serviceType: apiApt.serviceType || 'NCD Screening & Vitals',
-    slotTime: apiApt.scheduledTime.slice(0, 5),
-    status: apiApt.status === 'unable_to_complete' || apiApt.status === 'referred' ? 'cancelled' : apiApt.status,
-    bookingSource: 'patient_app',
-    queueToken: apiApt.queueToken || undefined,
-    createdAt: new Date().toISOString(),
-    consentRecorded: true,
+    id: a.id, hubId: a.hubId, hubName, title: value(a.title), titleBn: value(a.titleBn),
+    serviceType: a.serviceTypeCode,
+    serviceTypeId: a.serviceTypeId,
+    date: a.sessionDate, startTime: formatApiTime(a.startsAt), endTime: formatApiTime(a.endsAt),
+    sessionType: a.sessionType,
+    status: a.status, bookedCount: a.bookedCount, totalCapacity: a.appointmentCapacity,
+    walkInCapacity: a.walkInCapacity, walkInUsed: a.walkInCount,
+    teamLeadId: value(a.teamLeadUserId), teamLeadName: value(a.teamLeadName),
+    healthWorkersCount: a.healthWorkersCount, doctorsCount: a.doctorsCount,
+    requiredEquipmentReady: a.readiness?.equipmentReady,
+    minimumStaffReady: a.readiness?.staffReady,
   };
 }
 
-export function mapApiQueueTicketToQueueItem(
-  ticket: ApiQueueTicket,
-  hubId: string,
-  sessionId: string
-): QueueItem {
+export function mapApiAppointmentToAppointment(a: ApiAppointment, hubName = ''): HubAppointment {
+  const slotStart = a.slot?.startsAt ?? a.session?.startsAt ?? '';
   return {
-    id: ticket.id,
-    ticketNumber: ticket.displayCode || `A-${String(ticket.ticketNumber).padStart(3, '0')}`,
-    encounterId: ticket.encounter?.id || `enc_${ticket.id.slice(0, 8)}`,
-    appointmentId: `apt_${ticket.id.slice(0, 8)}`,
-    patientId: ticket.encounter?.patientId || 'pat_anon',
-    patientName: ticket.encounter?.patientName || 'Queue Patient',
-    patientNameBn: ticket.encounter?.patientNameBn || 'রোগী',
-    patientPhone: ticket.encounter?.patientPhone || '01700000000',
-    hubId,
-    sessionId,
-    stationId: ticket.station?.id || 'st_reception',
-    stationName: ticket.station?.name || 'Station 1: Reception & Identity',
-    currentStatus:
-      ticket.status === 'cancelled'
-        ? 'no_show'
-        : ticket.status === 'transferred' || ticket.status === 'paused'
-        ? 'waiting'
-        : ticket.status,
-    priority: ticket.priorityLevel >= 2 ? 'escalation' : ticket.priorityLevel === 1 ? 'priority_elderly' : 'normal',
-    arrivalTime: ticket.issuedAt ? ticket.issuedAt.slice(11, 16) : '09:00',
-    waitMinutes: ticket.waitingMinutes ?? 0,
-    serviceType: ticket.encounter?.serviceType || 'General Consultation',
-    assignedStaffName: 'On Duty Staff',
-    stepProgress: ticket.status === 'completed' ? 4 : ticket.status === 'in_service' ? 3 : 2,
+    id: a.id, appointmentCode: a.code, patientId: a.patientId,
+    patientName: value(a.patient?.fullName), patientNameBn: value(a.patient?.fullNameBn),
+    patientPhone: value(a.patient?.maskedPhone), hubId: a.hubId, hubName, sessionId: a.sessionId,
+    serviceType: value(a.serviceTypeName), slotTime: formatApiTime(slotStart),
+    status: a.status,
+    bookingSource: (a.source || '') as HubAppointment['bookingSource'], queueToken: a.queueToken ?? undefined,
+    createdAt: a.createdAt, consentRecorded: a.consentRecorded,
   };
 }
 
-export function mapApiPatientToPatient(apiPatient: ApiPatient): Patient {
-  const g: 'Female' | 'Male' | 'Other' =
-    apiPatient.gender === 'female' ? 'Female' : apiPatient.gender === 'other' ? 'Other' : 'Male';
+export function mapApiQueueTicketToQueueItem(a: ApiQueueTicket, hubId: string, sessionId: string, serviceType?: string): QueueItem {
+  const state = a.status;
+  const assigned = a.assignedStaff?.find((x) => ['assigned', 'accepted', 'started'].includes(x.status))?.name ?? '';
   return {
-    id: apiPatient.id,
-    canonicalHealoraId: apiPatient.healoraCode,
-    fullName: apiPatient.fullName,
-    fullNameBn: apiPatient.fullNameBn || apiPatient.fullName,
-    age: apiPatient.age || 42,
-    gender: g,
-    phone: apiPatient.phone,
-    district: 'Dhaka',
-    upazila: 'Savar',
-    nationalIdMasked: '•••• •••• ' + apiPatient.id.slice(0, 4),
-    consentStatus: 'active',
-    consentDate: '2026-11-10',
-    preferredHubId: apiPatient.registeredHubId || 'hub_dhaka_01',
-    totalEncounters: 3,
+    id: a.id, ticketNumber: a.displayCode, encounterId: a.encounter?.id ?? '', appointmentId: a.appointmentId ?? undefined,
+    patientId: a.patient?.id ?? '', patientName: a.patient?.firstName ?? '',
+    patientNameBn: '', patientPhone: '', hubId, sessionId, stationId: a.station?.id ?? '', stationName: value(a.station?.name),
+    currentStatus: state,
+    priority: a.priorityLevel >= 2 ? 'escalation' : a.priorityLevel === 1 ? 'priority_elderly' : 'normal',
+    arrivalTime: formatApiTime(a.issuedAt), waitMinutes: a.waitingMinutes, serviceType, assignedStaffName: assigned,
+    stepProgress: state === 'completed' ? 4 : state === 'in_service' ? 3 : state === 'called' ? 2 : 1,
   };
 }
 
-export function mapApiStationToStation(apiStation: ApiStation): HubStation {
-  const mappedType: 'registration' | 'vitals' | 'doctor_review' | 'counseling' =
-    apiStation.stationType === 'reception'
-      ? 'registration'
-      : apiStation.stationType === 'consultation'
-      ? 'doctor_review'
-      : 'vitals';
-
-  const mappedStatus: 'available' | 'busy' | 'paused' | 'out_of_service' =
-    apiStation.status === 'active'
-      ? 'available'
-      : apiStation.status === 'maintenance'
-      ? 'busy'
-      : 'out_of_service';
-
+export function mapApiPatientToPatient(a: ApiPatient): Patient {
+  const gender = a.sex === 'female' ? 'Female' : a.sex === 'male' ? 'Male' : a.sex === 'other' ? 'Other' : 'Unknown';
   return {
-    id: apiStation.id,
-    hubId: apiStation.hubId,
-    name: apiStation.name,
-    nameBn: apiStation.nameBn || apiStation.name,
-    stationType: mappedType,
-    status: mappedStatus,
-    currentStaffName: apiStation.currentStaffName || 'Station Staff',
-    currentTicketNumber: apiStation.currentTicketNumber || undefined,
-    completedTodayCount: 14,
-    supportedServices: ['NCD Screening', 'BP Check', 'Glucose Test'],
+    id: a.id, canonicalHealoraId: a.healoraCode, fullName: a.fullName, fullNameBn: value(a.fullNameBn),
+    age: a.age, gender, phone: value(a.maskedPhone ?? a.phone), district: '', upazila: '', nationalIdMasked: '',
+    consentStatus: undefined, consentDate: undefined, caregiverName: undefined, preferredHubId: value(a.registeredHubId),
   };
 }
 
-export function mapApiEquipmentToEquipment(apiEq: ApiEquipment): HubEquipment {
-  const cat =
-    apiEq.deviceType === 'glucometer'
-      ? 'glucometer'
-      : apiEq.deviceType === 'pulse_oximeter'
-      ? 'pulse_oximeter'
-      : apiEq.deviceType === 'weight_scale'
-      ? 'weight_scale'
-      : 'bp_monitor';
-
+export function mapApiStationToStation(a: ApiStation): HubStation {
+  const types: Record<string, HubStation['stationType']> = { registration: 'registration', vitals: 'vitals', doctor_review: 'doctor_review', counselling: 'counseling', waiting: 'waiting', other: 'other' };
+  const statuses: Record<string, HubStation['status']> = { available: 'available', busy: 'busy', paused: 'paused', out_of_service: 'out_of_service' };
   return {
-    id: apiEq.id,
-    code: `EQ-${apiEq.serialNumber.slice(-4)}`,
-    name: apiEq.deviceName,
-    category: cat,
-    model: apiEq.modelNumber,
-    serialNumber: apiEq.serialNumber,
-    hubId: apiEq.hubId,
-    stationId: apiEq.stationId || undefined,
-    stationName: 'Station 2: Vitals & Triage',
-    status: apiEq.status === 'retired' ? 'out_of_service' : apiEq.status,
-    lastCalibrationDate: apiEq.lastCalibrationDate || '2026-10-01',
-    nextCalibrationDue: apiEq.nextCalibrationDate || '2026-12-01',
-    batteryPercent: apiEq.batteryPercent ?? 95,
+    id: a.id, hubId: a.hubId, name: a.name, code: a.code, nameBn: value(a.nameBn),
+    stationType: types[a.stationType] ?? a.stationType, status: statuses[a.status] ?? a.status,
+    currentStaffName: value(a.currentStaff?.name), currentTicketNumber: a.currentTicketNumber ?? undefined,
+    supportedServices: a.serviceTypeIds,
   };
 }
 
-export function mapApiUserToStaff(apiUser: ApiUser, shift?: ApiShift): StaffMember {
+export function mapApiEquipmentToEquipment(a: ApiEquipment): HubEquipment {
+  const category = a.category;
   return {
-    id: apiUser.id,
-    fullName: apiUser.name,
-    fullNameBn: apiUser.nameBn || apiUser.name,
-    role: (apiUser.roleAssignments?.[0]?.role as any) || 'hub_manager',
-    roleTitle: 'Hub Management Officer',
-    roleTitleBn: 'হাব ব্যবস্থাপনা কর্মকর্তা',
-    phone: apiUser.phone || '+8801710000000',
-    bmdcOrLicenseNumber: 'BMDC-A' + apiUser.id.slice(0, 5),
-    active: apiUser.status === 'active',
-    assignedHubIds: [apiUser.roleAssignments?.[0]?.hubId || 'hub_dhaka_01'],
-    supervisorName: 'Tariqul Islam (Regional Ops)',
-    credentialVerified: true,
-    activeShift: shift?.status === 'checked_in' ? 'Morning Shift (08:00 - 14:00)' : 'Off Duty',
+    id: a.id, code: a.assetTag, name: a.assetTag, category: category as HubEquipment['category'],
+    model: value(a.model), serialNumber: value(a.serialNumber), hubId: a.hubId,
+    stationId: a.stationId ?? undefined, stationName: value(a.station?.name),
+    status: a.status,
+    lastCalibrationDate: value(a.lastCalibratedAt), nextCalibrationDue: value(a.nextCalibrationDue),
+    batteryPercent: a.batteryPercent ?? undefined, notes: value(a.notes ?? a.activeFaultDescription),
   };
 }
 
-export function mapApiEncounterToEncounter(apiEnc: ApiEncounterOperational): Encounter {
+export function mapApiUserToStaff(a: ApiUser, shift?: ApiShift): StaffMember {
+  const rawRole = shift?.role ?? a.roleAssignments?.[0]?.role ?? '';
+  const role = toUiRole(rawRole) ?? rawRole as StaffMember['role'];
   return {
-    id: apiEnc.id,
-    encounterCode: `ENC-${apiEnc.id.slice(0, 6).toUpperCase()}`,
-    patientId: apiEnc.patientId,
-    patientName: apiEnc.patientName,
-    patientNameBn: apiEnc.patientNameBn || apiEnc.patientName,
-    hubId: 'hub_dhaka_01',
-    hubName: 'Healora Hub Savar',
-    sessionId: apiEnc.sessionId,
-    status: apiEnc.completedAt ? 'completed' : apiEnc.startedAt ? 'in_progress' : 'assigned',
-    syncState: apiEnc.syncStatus === 'synced' ? 'synced' : apiEnc.syncStatus === 'failed' ? 'sync_failed' : 'pending_local',
-    idempotencyKey: `idemp_${apiEnc.id}`,
-    openedAt: apiEnc.startedAt ? apiEnc.startedAt.slice(11, 16) : '10:00',
-    closedAt: apiEnc.completedAt ? apiEnc.completedAt.slice(11, 16) : undefined,
-    assignedWorkerName: apiEnc.assignedStaffName || 'Nasrin Sultana (HW)',
-    completenessPercentage: 100,
-    missingObservationsCount: 0,
-    observations: [],
-    doctorReviewStatus: 'pending',
+    id: a.id, email: a.email, fullName: a.name, fullNameBn: value(a.nameBn), role, roleTitle: role, roleTitleBn: role,
+    phone: value(a.phone), bmdcOrLicenseNumber: undefined, active: a.status === 'active',
+    assignedHubIds: [...new Set([...(a.roleAssignments ?? []).map((r) => r.hubId).filter((x): x is string => Boolean(x)), ...(shift?.hubId ? [shift.hubId] : [])])],
+    activeShift: shift ? `${formatApiTime(shift.startsAt)}–${formatApiTime(shift.endsAt)} (${shift.status})` : '',
   };
 }
 
-export function mapApiNotificationToNotification(apiNotif: ApiNotification): AppNotification {
-  const prio: 'normal' | 'high' | 'urgent' =
-    apiNotif.severity === 'alert' ? 'urgent' : apiNotif.severity === 'warning' ? 'high' : 'normal';
-
+export function mapApiEncounterToEncounter(a: ApiEncounterOperational, hubId: string, hubName = ''): Encounter {
+  const c = a.completeness;
+  const total = c?.requiredTotal;
+  const captured = c?.captured;
+  const status: Encounter['status'] = a.status === 'submitted' ? 'submitted_for_review' : a.status === 'unable_to_complete' ? 'referred_escalated' : a.status;
   return {
-    id: apiNotif.id,
-    timestamp: apiNotif.createdAt ? apiNotif.createdAt.slice(11, 16) : 'Just now',
-    category: 'queue',
-    title: apiNotif.title,
-    titleBn: apiNotif.titleBn || apiNotif.title,
-    message: apiNotif.message,
-    messageBn: apiNotif.messageBn || apiNotif.message,
-    channel: 'internal_system',
-    recipientRoleOrPhone: 'hub_manager',
-    status: 'delivered',
-    priority: prio,
-    acknowledged: apiNotif.read,
+    id: a.id, encounterCode: a.queueTicket?.displayCode ?? a.id, patientId: a.patientId ?? '',
+    patientName: value(a.patient?.fullName), patientNameBn: value(a.patient?.fullNameBn), hubId, hubName,
+    sessionId: a.sessionId ?? '', status,
+    syncState: a.sync?.state === 'synced' ? 'synced' : a.sync?.state === 'failed' ? 'sync_failed' : a.sync?.state === 'pending' ? 'pending_local' : a.sync?.state === 'none' ? 'none' : undefined,
+    idempotencyKey: undefined, openedAt: formatApiTime(a.openedAt), closedAt: formatApiTime(a.closedAt),
+    assignedWorkerName: value(a.assignments?.find((x) => ['assigned', 'accepted', 'started'].includes(x.status))?.name),
+    completenessPercentage: total && captured != null ? Math.round((captured / total) * 100) : undefined,
+    missingObservationsCount: c?.pending, lastSyncAttempt: a.sync?.lastServerAckAt ?? undefined,
+    observations: undefined, doctorReviewStatus: a.requiresDoctorReview ? 'pending' : 'not_required',
   };
 }
 
-export function mapApiExceptionToException(apiExc: ApiOperationalException): OperationalException {
-  const sev: 'critical' | 'warning' | 'info' =
-    apiExc.severity === 'critical' ? 'critical' : apiExc.severity === 'high' ? 'critical' : apiExc.severity === 'moderate' ? 'warning' : 'info';
-
-  const cat =
-    apiExc.type === 'sync_delayed'
-      ? 'sync_error'
-      : apiExc.type === 'equipment_fault'
-      ? 'equipment_fault'
-      : apiExc.type === 'unassigned_task'
-      ? 'unassigned_encounter'
-      : 'wait_time_breach';
-
+export function mapApiNotificationToNotification(a: ApiNotification): AppNotification {
+  const categoryMap: Record<string, AppNotification['category']> = { appointment: 'appointment', session: 'session', queue_ticket: 'queue', equipment: 'equipment', encounter: 'clinical_alert', sync_submission: 'sync', operational_exception: 'escalation' };
   return {
-    id: apiExc.id,
-    code: `EXC-${apiExc.id.slice(0, 5).toUpperCase()}`,
-    title: apiExc.title,
-    titleBn: apiExc.titleBn || apiExc.title,
-    category: cat,
-    severity: sev,
-    hubId: apiExc.hubId,
-    hubName: 'Healora Hub Savar',
-    sessionId: apiExc.sessionId || undefined,
-    createdAt: apiExc.detectedAt ? apiExc.detectedAt.slice(11, 16) : 'Just now',
-    status: apiExc.status === 'resolved' ? 'resolved' : apiExc.status === 'in_progress' ? 'investigating' : 'active',
-    details: apiExc.description,
+    id: a.id, timestamp: formatApiTime(a.queuedAt), category: categoryMap[a.relatedType ?? ''] ?? 'system',
+    title: a.templateCode, status: a.status === 'failed' ? 'failed' : a.status === 'queued' ? 'pending' : a.status === 'delivered' ? 'delivered' : 'sent',
+    hubName: '', relatedType: a.relatedType ?? undefined, relatedId: a.relatedId ?? undefined, deepLinkPath: notificationRoute(a.deepLink),
   };
 }
 
-export function mapApiAuditEventToAuditEvent(apiAud: ApiAuditEvent): AuditEvent {
-  const ent: AuditEvent['entityType'] =
-    apiAud.entityType === 'Hub'
-      ? 'Hub'
-      : apiAud.entityType === 'Session'
-      ? 'Session'
-      : apiAud.entityType === 'Appointment'
-      ? 'Appointment'
-      : apiAud.entityType === 'Equipment'
-      ? 'Equipment'
-      : apiAud.entityType === 'Patient'
-      ? 'Patient'
-      : 'Security';
+function notificationRoute(deepLink?: string | null): string | undefined {
+  if (!deepLink) return undefined;
+  const match = deepLink.match(/(?:healora-hub|healora-team):\/\/(hubs|sessions|appointments|queue|patients|encounters|exceptions|equipment|staff)/i);
+  return match ? `/${match[1].toLowerCase() === 'staff' ? 'team' : match[1].toLowerCase()}` : undefined;
+}
 
-  const outcome: 'success' | 'flagged' | 'denied' =
-    apiAud.outcome === 'success' ? 'success' : apiAud.outcome === 'denied' ? 'denied' : 'flagged';
-
+export function mapApiExceptionToException(a: ApiOperationalException, hubName = ''): OperationalException {
+  const severity = a.severity === 'critical' || a.severity === 'high' ? 'critical' : a.severity === 'medium' || a.severity === 'moderate' ? 'warning' : 'info';
+  const category = a.type === 'sync_delayed' ? 'sync_error' : a.type === 'equipment_fault' ? 'equipment_fault' : a.type === 'unassigned_task' ? 'unassigned_encounter' : a.type === 'wait_time_breach' ? 'wait_time_breach' : 'other';
   return {
-    id: apiAud.id,
-    timestamp: apiAud.timestamp,
-    actorName: apiAud.actorName,
-    actorRole: apiAud.actorRole,
-    action: apiAud.action,
-    entityType: ent,
-    entityId: apiAud.entityId,
-    hubName: apiAud.hubName || 'Healora Hub Savar',
-    details: typeof apiAud.details === 'string' ? apiAud.details : JSON.stringify(apiAud.details || {}),
-    outcome,
+    id: a.id, code: a.id, title: a.title ?? a.summary ?? '', titleBn: value(a.titleBn), category, severity,
+    hubId: a.hubId, hubName: value(a.hub?.name ?? hubName), sessionId: a.sessionId ?? undefined,
+    encounterId: a.entityType === 'encounter' ? a.entityId : undefined, createdAt: formatApiTime(a.raisedAt ?? a.detectedAt),
+    status: a.status,
+    details: value(a.description ?? a.summary),
+  };
+}
+
+export function mapApiAuditEventToAuditEvent(a: ApiAuditEvent, hubName = ''): AuditEvent {
+  const entity = a.targetType?.toLowerCase() ?? '';
+  const types: Record<string, AuditEvent['entityType']> = { hub: 'Hub', session: 'Session', appointment: 'Appointment', queue_ticket: 'Queue', staff_shift: 'Staff', equipment: 'Equipment', encounter: 'Encounter', patient: 'Patient', region: 'Region', hub_catchment: 'Catchment', notification: 'Notification' };
+  return {
+    id: a.id, timestamp: a.occurredAt ?? '', actorName: a.actorName ?? '', actorRole: a.actorRole ?? '',
+    action: a.action ?? '', entityType: types[entity] ?? 'Security', entityId: a.targetId ?? '', hubName: value(a.hub?.name ?? hubName),
+    details: [a.reason, typeof a.metadata === 'string' ? a.metadata : a.metadata ? JSON.stringify(a.metadata) : undefined].filter(Boolean).join(' | '),
+    outcome: a.outcome === 'success' ? 'success' : a.outcome === 'denied' ? 'denied' : 'flagged',
   };
 }

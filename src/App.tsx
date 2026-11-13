@@ -80,7 +80,7 @@ const AppContent: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Compliance & Data Residency Top Banner */}
+        {/* Live backend connection status */}
         <BangladeshBanner />
 
         {/* Global Top App Header with Live API Connection indicator */}

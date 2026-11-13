@@ -18,35 +18,31 @@ export const StationsView: React.FC = () => {
     stations,
     selectedHubId,
     hubs,
-    staff,
     queue,
     toggleStationStatus,
     addStation,
     callNextPatient,
-    showToast,
+    refreshBackendData,
   } = useApp();
 
   const [isAddStationOpen, setIsAddStationOpen] = useState(false);
   const [newStationName, setNewStationName] = useState('');
+  const [newStationCode, setNewStationCode] = useState('');
   const [newStationType, setNewStationType] = useState<HubStation['stationType']>('vitals');
-  const [newStationStaff, setNewStationStaff] = useState('');
 
   const currentHub = hubs.find((h) => h.id === selectedHubId) || hubs[0];
   const hubStations = stations.filter((s) => s.hubId === selectedHubId);
   const hubQueue = queue.filter((q) => q.hubId === selectedHubId);
 
-  const handleCreateStation = (e: React.FormEvent) => {
+  const handleCreateStation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStationName.trim()) return;
-    addStation({
+    const ok = await addStation({
+      code: newStationCode,
       name: newStationName,
-      nameBn: newStationName,
       stationType: newStationType,
-      currentStaffName: newStationStaff || 'Unassigned Staff',
-      supportedServices: ['Basic Vitals', 'Blood Glucose'],
     });
-    setNewStationName('');
-    setIsAddStationOpen(false);
+    if (ok) { setNewStationName(''); setNewStationCode(''); setIsAddStationOpen(false); }
   };
 
   const getStationTypeBadge = (type: HubStation['stationType']) => {
@@ -79,7 +75,7 @@ export const StationsView: React.FC = () => {
             {t.navStations}
           </h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub?.name || 'Healora Physical Hub'} • {language === 'bn'
+            {currentHub?.name || 'Selected hub'} • {language === 'bn'
               ? 'অভ্যর্থনা, ভাইটালস পরিমাপ কক্ষ, ডাক্তার রিভিউ ও কাউন্সেলিং স্টেশন পরিচালনা'
               : 'Dedicated physical care desks, live occupancy, staff allocation & queue progress'}
           </p>
@@ -88,7 +84,7 @@ export const StationsView: React.FC = () => {
         <div className="flex items-center gap-3">
           <Button
             variant="secondary"
-            onClick={() => showToast('Station operational heartbeat synced.')}
+            onClick={() => void refreshBackendData()}
             icon={<PhArrowsClockwise size={16} />}
           >
             {language === 'bn' ? 'রিফ্রেশ' : 'Refresh Desks'}
@@ -127,7 +123,9 @@ export const StationsView: React.FC = () => {
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Completed Today</div>
           <div className="mt-1 text-3xl font-bold text-pine">
-            {hubStations.reduce((acc, s) => acc + s.completedTodayCount, 0)}
+            {hubStations.length > 0 && hubStations.every((station) => station.completedTodayCount != null)
+              ? hubStations.reduce((acc, station) => acc + (station.completedTodayCount ?? 0), 0)
+              : '—'}
           </div>
           <div className="mt-1 text-xs text-slate">Cumulative encounters served</div>
         </Card>
@@ -189,7 +187,7 @@ export const StationsView: React.FC = () => {
                     />
                   </div>
                   <h3 className="m-0 text-lg font-semibold text-ink">
-                    {language === 'bn' ? station.nameBn : station.name}
+                    {language === 'bn' ? station.nameBn || station.name : station.name}
                   </h3>
                 </div>
 
@@ -205,7 +203,7 @@ export const StationsView: React.FC = () => {
               <div className="mb-4 rounded-xl bg-bone p-3.5 text-xs">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-slate">Assigned Personnel:</span>
-                  <strong className="text-ink">{station.currentStaffName}</strong>
+                  <strong className="text-ink">{station.currentStaffName || 'Not assigned'}</strong>
                 </div>
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-slate">Patients Waiting in Line:</span>
@@ -215,7 +213,7 @@ export const StationsView: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate">Completed Today:</span>
-                  <span className="font-semibold text-pine">{station.completedTodayCount} visits</span>
+                  <span className="font-semibold text-pine">{station.completedTodayCount ?? '—'}{station.completedTodayCount != null ? ' visits' : ''}</span>
                 </div>
               </div>
 
@@ -277,6 +275,10 @@ export const StationsView: React.FC = () => {
       >
         <form onSubmit={handleCreateStation} className="space-y-4">
           <div>
+            <label className="mb-1 block text-xs font-semibold text-slate">Station code *</label>
+            <input type="text" required value={newStationCode} onChange={(e) => setNewStationCode(e.target.value)} className="h-10 w-full rounded-xl border border-line px-3 text-sm" />
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-semibold text-slate">Station Name</label>
             <input
               type="text"
@@ -302,21 +304,7 @@ export const StationsView: React.FC = () => {
             </select>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Assign Staff Member</label>
-            <select
-              value={newStationStaff}
-              onChange={(e) => setNewStationStaff(e.target.value)}
-              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-            >
-              <option value="">Select staff member...</option>
-              {staff.map((s) => (
-                <option key={s.id} value={s.fullName}>
-                  {s.fullName} ({s.roleTitle})
-                </option>
-              ))}
-            </select>
-          </div>
+          <p className="m-0 text-xs text-slate">Create the station first. Staff assignments are maintained in shift/roster APIs.</p>
 
           <div className="flex justify-end gap-2 pt-3">
             <Button variant="secondary" onClick={() => setIsAddStationOpen(false)}>Cancel</Button>

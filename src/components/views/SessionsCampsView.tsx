@@ -10,9 +10,11 @@ import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
 import { useApp } from '../../context/useApp';
 import type { HubSession } from '../../types';
+import { PublishSessionSheet } from './PublishSessionSheet';
 
 export const SessionsCampsView: React.FC = () => {
-  const { t, language, sessions, selectedHubId, createSession, cancelSession, showToast } = useApp();
+  const { t, language, sessions, serviceTypes, selectedHubId, createSession, openBookingSession, startSession, completeSession, cancelSession } = useApp();
+  const [publishingSession, setPublishingSession] = useState<HubSession | null>(null);
   const [isNewSessionOpen, setIsNewSessionOpen] = useState(false);
   const [selectedSessionForDetails, setSelectedSessionForDetails] = useState<HubSession | null>(null);
   const [cancellingSessionId, setCancellingSessionId] = useState<string | null>(null);
@@ -20,38 +22,37 @@ export const SessionsCampsView: React.FC = () => {
 
   // Form states
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState('2026-11-04');
-  const [startTime, setStartTime] = useState('09:00 AM');
-  const [endTime, setEndTime] = useState('02:00 PM');
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [serviceTypeId, setServiceTypeId] = useState('');
   const [sessionType, setSessionType] = useState<'standard_clinic' | 'special_camp'>('standard_clinic');
-  const [totalCapacity, setTotalCapacity] = useState(35);
-  const [walkInCapacity, setWalkInCapacity] = useState(8);
-  const [overrideReason, setOverrideReason] = useState('');
+  const [totalCapacity, setTotalCapacity] = useState('');
+  const [walkInCapacity, setWalkInCapacity] = useState('');
 
   const hubSessions = sessions.filter((s) => s.hubId === selectedHubId);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    const ok = createSession({
+    const ok = await createSession({
+      hubId: selectedHubId,
+      serviceTypeId,
       title,
-      titleBn: title,
       date,
       startTime,
       endTime,
       sessionType,
       totalCapacity: Number(totalCapacity),
       walkInCapacity: Number(walkInCapacity),
-      healthWorkersCount: 2,
-      doctorsCount: 1,
-      requiredEquipmentReady: true,
-      overrideReason,
     });
 
     if (ok) {
       setTitle('');
-      setOverrideReason('');
+      setServiceTypeId('');
+      setTotalCapacity('');
+      setWalkInCapacity('');
       setIsNewSessionOpen(false);
     }
   };
@@ -66,6 +67,7 @@ export const SessionsCampsView: React.FC = () => {
               {language === 'bn' ? 'সেশন ও ক্যাম্প সময়সূচি' : 'SESSION ROSTER & CAPACITY CONTROLS'}
             </span>
           </div>
+
           <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
             {t.navSessions}
           </h1>
@@ -120,7 +122,7 @@ export const SessionsCampsView: React.FC = () => {
                   />
                 </div>
                 <h2 className="m-0 text-lg font-semibold text-ink">
-                  {language === 'bn' ? session.titleBn : session.title}
+                  {language === 'bn' ? session.titleBn || session.title : session.title}
                 </h2>
               </div>
             </div>
@@ -150,30 +152,22 @@ export const SessionsCampsView: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="mt-1.5 text-[11px] text-slate">
-                Overbooking Guard: Active (Hard-stop at slot limit + walk-in buffer)
-              </div>
             </div>
 
             {/* Prerequisites Checklist (PRD Section 8.5) */}
             <div className="mb-4.5 flex flex-col gap-1.5 text-xs">
-              <div className={`flex items-center gap-1.5 ${session.minimumStaffReady ? 'text-ok-fg' : 'text-bad-fg'}`}>
-                <PhCheckCircle size={15} color={session.minimumStaffReady ? '#2F855A' : '#C53030'} />
+              <div className={`flex items-center gap-1.5 ${session.minimumStaffReady == null ? 'text-slate' : session.minimumStaffReady ? 'text-ok-fg' : 'text-bad-fg'}`}>
+                <PhCheckCircle size={15} color={session.minimumStaffReady == null ? '#718096' : session.minimumStaffReady ? '#2F855A' : '#C53030'} />
                 <span>
-                  Staffing: Lead ({session.teamLeadName}), {session.healthWorkersCount} HWs, {session.doctorsCount} Doctor assigned.
+                  Staffing readiness: {session.minimumStaffReady == null ? 'not reported' : session.minimumStaffReady ? 'ready' : 'not ready'}; {session.teamLeadName || 'Not reported'}; {session.healthWorkersCount ?? '—'} health workers, {session.doctorsCount ?? '—'} doctors reported.
                 </span>
               </div>
-              <div className={`flex items-center gap-1.5 ${session.requiredEquipmentReady ? 'text-ok-fg' : 'text-bad-fg'}`}>
-                <PhCheckCircle size={15} color={session.requiredEquipmentReady ? '#2F855A' : '#C53030'} />
+              <div className={`flex items-center gap-1.5 ${session.requiredEquipmentReady == null ? 'text-slate' : session.requiredEquipmentReady ? 'text-ok-fg' : 'text-bad-fg'}`}>
+                <PhCheckCircle size={15} color={session.requiredEquipmentReady == null ? '#718096' : session.requiredEquipmentReady ? '#2F855A' : '#C53030'} />
                 <span>
-                  Equipment: BP, Glucometer &amp; Pulse Oximeter calibration certified.
+                  Equipment readiness: {session.requiredEquipmentReady == null ? 'not reported' : session.requiredEquipmentReady ? 'ready' : 'not ready'}.
                 </span>
               </div>
-              {session.overrideReason && (
-                <div className="rounded-md bg-warn-bg px-2 py-1 text-[11px] text-warn-fg">
-                  Override Note: {session.overrideReason}
-                </div>
-              )}
             </div>
 
             {/* Actions */}
@@ -187,10 +181,16 @@ export const SessionsCampsView: React.FC = () => {
               </button>
 
               <div className="flex gap-2">
-                {session.status === 'open_for_booking' && (
+                {session.status === 'draft' && (
+                  <button type="button" onClick={() => setPublishingSession(session)} className="cursor-pointer rounded-lg border-none bg-teal px-3 py-1.5 text-xs font-semibold text-white">Publish</button>
+                )}
+                {session.status === 'published' && (
+                  <button type="button" onClick={() => openBookingSession(session.id)} className="cursor-pointer rounded-lg border-none bg-ink px-3 py-1.5 text-xs font-semibold text-white">Open Booking</button>
+                )}
+                {['published', 'open_for_booking', 'full'].includes(session.status) && (
                   <button
                     type="button"
-                    onClick={() => showToast(`Session ${session.title} opened for live check-in.`)}
+                    onClick={() => startSession(session.id)}
                     className="cursor-pointer rounded-lg border-none bg-ink px-3 py-1.5 text-xs font-semibold text-white"
                   >
                     Start Session
@@ -199,7 +199,7 @@ export const SessionsCampsView: React.FC = () => {
                 {session.status === 'in_progress' && (
                   <button
                     type="button"
-                    onClick={() => showToast(`Session ${session.title} marked completed.`)}
+                    onClick={() => completeSession(session.id)}
                     className="cursor-pointer rounded-lg border border-ok bg-ok-bg px-3 py-1.5 text-xs font-semibold text-ok-fg"
                   >
                     End Session
@@ -222,11 +222,12 @@ export const SessionsCampsView: React.FC = () => {
       </div>
 
       {/* New Session Modal */}
+      {publishingSession && <PublishSessionSheet key={publishingSession.id} session={publishingSession} onClose={() => setPublishingSession(null)} />}
       <ModalSheet
         isOpen={isNewSessionOpen}
         onClose={() => setIsNewSessionOpen(false)}
         title={t.newSession}
-        subtitle="Validate staffing & device calibration prior to publishing"
+        subtitle="Create a session using the backend service catalogue and hub schedule"
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
@@ -241,6 +242,14 @@ export const SessionsCampsView: React.FC = () => {
               placeholder="e.g. Afternoon Diabetic & Hypertension Outreach"
               className="h-12 w-full rounded-xl border border-line px-3.5 font-ui text-[15px]"
             />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[13px] font-semibold text-slate">Service Type *</label>
+            <select required value={serviceTypeId} onChange={(e) => setServiceTypeId(e.target.value)} className="h-12 w-full rounded-xl border border-line bg-paper px-3 text-sm">
+              <option value="">Select service type</option>
+              {serviceTypes.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -263,6 +272,7 @@ export const SessionsCampsView: React.FC = () => {
               </label>
               <input
                 type="date"
+                required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="h-12 w-full rounded-xl border border-line px-3 text-sm"
@@ -276,10 +286,10 @@ export const SessionsCampsView: React.FC = () => {
                 Start Time
               </label>
               <input
-                type="text"
+                type="time"
+                required
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                placeholder="09:00 AM"
                 className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
@@ -288,10 +298,10 @@ export const SessionsCampsView: React.FC = () => {
                 End Time
               </label>
               <input
-                type="text"
+                type="time"
+                required
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                placeholder="02:00 PM"
                 className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
@@ -304,8 +314,10 @@ export const SessionsCampsView: React.FC = () => {
               </label>
               <input
                 type="number"
+                required
+                min={1}
                 value={totalCapacity}
-                onChange={(e) => setTotalCapacity(Number(e.target.value))}
+                onChange={(e) => setTotalCapacity(e.target.value)}
                 className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
@@ -315,24 +327,13 @@ export const SessionsCampsView: React.FC = () => {
               </label>
               <input
                 type="number"
+                required
+                min={0}
                 value={walkInCapacity}
-                onChange={(e) => setWalkInCapacity(Number(e.target.value))}
+                onChange={(e) => setWalkInCapacity(e.target.value)}
                 className="h-12 w-full rounded-xl border border-line px-3 text-sm"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-slate">
-              Override Reason (if staffing/equipment needs variance)
-            </label>
-            <input
-              type="text"
-              value={overrideReason}
-              onChange={(e) => setOverrideReason(e.target.value)}
-              placeholder="e.g. Single-worker screening authorized under Protocol v2.4"
-              className="h-12 w-full rounded-xl border border-line px-3 text-sm"
-            />
           </div>
 
           <div className="mt-4 flex justify-end gap-3">
@@ -340,7 +341,7 @@ export const SessionsCampsView: React.FC = () => {
               {t.cancel}
             </Button>
             <Button type="submit" variant="primary">
-              Publish Session
+              Create Session
             </Button>
           </div>
         </form>
@@ -352,7 +353,7 @@ export const SessionsCampsView: React.FC = () => {
           isOpen={!!selectedSessionForDetails}
           onClose={() => setSelectedSessionForDetails(null)}
           title={`Session Details: ${selectedSessionForDetails.title}`}
-          subtitle="Operational parameters and verified staffing roster"
+          subtitle="Session staffing and equipment readiness reported by the backend"
         >
           <div className="flex flex-col gap-4">
             <div className="rounded-ctl bg-bone p-4">
@@ -360,24 +361,20 @@ export const SessionsCampsView: React.FC = () => {
                 Assigned Team Roster:
               </div>
               <div className="text-[13px] leading-[1.6] text-slate">
-                • <strong>Team Lead:</strong> {selectedSessionForDetails.teamLeadName}
+                • <strong>Team Lead:</strong> {selectedSessionForDetails.teamLeadName || 'Not assigned'}
                 <br />
-                • <strong>Health Assistants:</strong> 2 Field Health Workers checked in
+                • <strong>Health workers:</strong> {selectedSessionForDetails.healthWorkersCount ?? 'Not reported'}
                 <br />
-                • <strong>Clinical Reviewer:</strong> Dr. Arjun Mehta (BMDC-A-45892)
+                • <strong>Doctors:</strong> {selectedSessionForDetails.doctorsCount ?? 'Not reported'}
               </div>
             </div>
 
             <div className="rounded-ctl bg-mist p-4">
               <div className="mb-1.5 text-[13px] font-semibold text-pine">
-                Equipment Checklist Status:
+              Equipment readiness
               </div>
               <div className="text-[13px] leading-[1.6] text-pine">
-                ✓ Omron HEM-7120 Digital BP Monitor (Calibrated)
-                <br />
-                ✓ Accu-Chek Instant Glucometer (Control solution verified)
-                <br />
-                ✓ Masimo MightySat Pulse Oximeter (95% battery)
+                {selectedSessionForDetails.requiredEquipmentReady == null ? 'Equipment readiness not reported.' : selectedSessionForDetails.requiredEquipmentReady ? 'Ready according to backend.' : 'Not ready according to backend.'}
               </div>
             </div>
 
@@ -397,19 +394,16 @@ export const SessionsCampsView: React.FC = () => {
         title="Cancel Hub Service Session"
       >
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (cancellingSessionId && cancelReason.trim()) {
-              cancelSession(cancellingSessionId, cancelReason);
-              setCancellingSessionId(null);
-              setCancelReason('');
+              const ok = await cancelSession(cancellingSessionId, cancelReason);
+              if (ok) { setCancellingSessionId(null); setCancelReason(''); }
             }
           }}
           className="space-y-4"
         >
-          <div className="rounded-xl bg-bad-bg p-3.5 text-xs text-bad-fg">
-            <strong>Session Cancellation Rule (PRD 8.5 &amp; 12.2):</strong> Cancelling this session will block any new bookings and trigger automated notifications to booked patients. Historical visits and already-completed observations are safely preserved.
-          </div>
+          <p className="m-0 text-xs text-slate">The backend validates the cancellation and records the reason.</p>
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate">Cancellation Reason (Mandatory)</label>

@@ -38,25 +38,25 @@ export interface Hub {
   nameBn: string;
   status: HubStatus;
   regionId: string;
-  division: string;
-  district: string;
-  upazila: string;
-  unionName: string;
+  division?: string;
+  district?: string;
+  upazila?: string;
+  unionName?: string;
   address: string;
   addressBn: string;
   phone: string;
-  operatingHours: string;
+  operatingHours?: string;
   services: string[];
   assignedManager: string;
   emergencyReferralFacility: string;
   emergencyPhone: string;
-  capacityPerDay: number;
-  activeSessionsToday: number;
-  openStationsCount: number;
-  totalDevicesCount: number;
+  capacityPerDay?: number;
+  activeSessionsToday?: number;
+  openStationsCount?: number;
+  totalDevicesCount?: number;
 }
 
-export type SessionType = 'standard_clinic' | 'special_camp' | 'outreach_event';
+export type SessionType = 'standard_clinic' | 'special_camp' | 'outreach_event' | 'other';
 export type SessionStatus =
   | 'draft'
   | 'published'
@@ -73,7 +73,8 @@ export interface HubSession {
   hubName: string;
   title: string;
   titleBn: string;
-  serviceType: 'basic_vitals' | 'doctor_review' | 'camp_session' | 'telemedicine_support';
+  serviceType?: string;
+  serviceTypeId?: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -85,10 +86,10 @@ export interface HubSession {
   walkInUsed: number;
   teamLeadId: string;
   teamLeadName: string;
-  healthWorkersCount: number;
-  doctorsCount: number;
-  requiredEquipmentReady: boolean;
-  minimumStaffReady: boolean;
+  healthWorkersCount?: number;
+  doctorsCount?: number;
+  requiredEquipmentReady?: boolean;
+  minimumStaffReady?: boolean;
   overrideReason?: string;
 }
 
@@ -100,10 +101,17 @@ export type AppointmentStatus =
   | 'in_service'
   | 'completed'
   | 'cancelled'
-  | 'no_show';
+  | 'no_show'
+  | 'unable_to_complete'
+  | 'referred';
 
 export type BookingSource =
   | 'patient_app'
+  | 'operations_assignment'
+  | 'campaign'
+  | 'referral'
+  | 'local_doctor'
+  | 'walk_in'
   | 'field_referral'
   | 'assisted_walkin'
   | 'doctor_referral';
@@ -118,13 +126,14 @@ export interface HubAppointment {
   hubId: string;
   hubName: string;
   sessionId: string;
+  slotId?: string;
   serviceType: string;
   slotTime: string;
   status: AppointmentStatus;
   bookingSource: BookingSource;
   queueToken?: string;
   createdAt: string;
-  consentRecorded: boolean;
+  consentRecorded?: boolean;
 }
 
 export interface Patient {
@@ -132,18 +141,18 @@ export interface Patient {
   canonicalHealoraId: string;
   fullName: string;
   fullNameBn: string;
-  age: number;
-  gender: 'Female' | 'Male' | 'Other';
+  age?: number;
+  gender: 'Female' | 'Male' | 'Other' | 'Unknown';
   phone: string;
-  district: string;
-  upazila: string;
-  nationalIdMasked: string;
-  consentStatus: 'active' | 'pending' | 'caregiver_authorized';
-  consentDate: string;
+  district?: string;
+  upazila?: string;
+  nationalIdMasked?: string;
+  consentStatus?: 'active' | 'pending' | 'caregiver_authorized';
+  consentDate?: string;
   caregiverName?: string;
   caregiverRelation?: string;
-  preferredHubId: string;
-  totalEncounters: number;
+  preferredHubId?: string;
+  totalEncounters?: number;
 }
 
 export type QueueState =
@@ -151,9 +160,12 @@ export type QueueState =
   | 'called'
   | 'in_service'
   | 'awaiting_review'
+  | 'transferred'
+  | 'paused'
   | 'completed'
   | 'referred'
-  | 'no_show';
+  | 'no_show'
+  | 'cancelled';
 
 export interface QueueItem {
   id: string;
@@ -172,7 +184,7 @@ export interface QueueItem {
   priority: 'normal' | 'priority_elderly' | 'escalation';
   arrivalTime: string;
   waitMinutes: number;
-  serviceType: string;
+  serviceType?: string;
   assignedStaffName: string;
   stepProgress: number; // e.g. 1 to 4
 }
@@ -183,12 +195,13 @@ export interface HubStation {
   id: string;
   hubId: string;
   name: string;
+  code?: string;
   nameBn: string;
-  stationType: 'registration' | 'vitals' | 'doctor_review' | 'counseling';
+  stationType: 'registration' | 'vitals' | 'doctor_review' | 'counseling' | 'waiting' | 'other';
   status: StationStatus;
   currentStaffName: string;
   currentTicketNumber?: string;
-  completedTodayCount: number;
+  completedTodayCount?: number;
   supportedServices?: string[];
 }
 
@@ -197,14 +210,21 @@ export type EquipmentCategory =
   | 'glucometer'
   | 'pulse_oximeter'
   | 'weight_scale'
-  | 'ecg_device';
+  | 'weighing_scale'
+  | 'stadiometer'
+  | 'thermometer'
+  | 'tablet'
+  | 'printer'
+  | 'ecg_device'
+  | 'other';
 
 export type EquipmentStatus =
   | 'available'
   | 'assigned'
   | 'maintenance'
   | 'calibration_due'
-  | 'out_of_service';
+  | 'out_of_service'
+  | 'retired';
 
 export interface HubEquipment {
   id: string;
@@ -219,13 +239,14 @@ export interface HubEquipment {
   status: EquipmentStatus;
   lastCalibrationDate: string;
   nextCalibrationDue: string;
-  batteryPercent: number;
+  batteryPercent?: number;
   notes?: string;
   supportedObservations?: string[];
 }
 
 export interface StaffMember {
   id: string;
+  email?: string;
   fullName: string;
   fullNameBn: string;
   role: UserRole;
@@ -235,12 +256,12 @@ export interface StaffMember {
   bmdcOrLicenseNumber?: string;
   active: boolean;
   assignedHubIds: string[];
-  supervisorName: string;
-  credentialVerified: boolean;
+  supervisorName?: string;
+  credentialVerified?: boolean;
   activeShift: string;
 }
 
-export type SyncState = 'synced' | 'pending_local' | 'sync_failed' | 'retrying';
+export type SyncState = 'synced' | 'pending_local' | 'sync_failed' | 'retrying' | 'none';
 
 export interface EncounterObservation {
   code: string;
@@ -266,20 +287,24 @@ export interface Encounter {
     | 'created'
     | 'assigned'
     | 'in_progress'
+    | 'awaiting_sync'
+    | 'sync_failed'
+    | 'submitted'
     | 'submitted_for_review'
     | 'reviewed'
     | 'completed'
+    | 'unable_to_complete'
     | 'referred_escalated';
-  syncState: SyncState;
-  idempotencyKey: string;
+  syncState?: SyncState;
+  idempotencyKey?: string;
   openedAt: string;
   closedAt?: string;
   assignedWorkerName: string;
   reviewingDoctorName?: string;
-  completenessPercentage: number;
-  missingObservationsCount: number;
+  completenessPercentage?: number;
+  missingObservationsCount?: number;
   lastSyncAttempt?: string;
-  observations: EncounterObservation[];
+  observations?: EncounterObservation[];
   dispositionNotes?: string;
   doctorReviewStatus?: 'not_required' | 'pending' | 'reviewed' | 'remeasurement_requested';
   requiredObservations?: string[];
@@ -301,17 +326,18 @@ export interface AuditEvent {
 export interface Region {
   id: string;
   code: string;
+  level?: 'operational_region' | 'division' | 'district' | 'upazila' | 'union' | 'ward' | 'village';
   name: string;
   nameBn: string;
-  division: string;
-  regionalManagerName: string;
-  regionalManagerPhone: string;
-  totalHubsCount: number;
-  activeHubsCount: number;
-  catchmentPopulation: number;
-  districts: string[];
-  catchmentUnions: string[];
-  status: 'active' | 'expansion_planned';
+  division?: string;
+  regionalManagerName?: string;
+  regionalManagerPhone?: string;
+  totalHubsCount?: number;
+  activeHubsCount?: number;
+  catchmentPopulation?: number;
+  districts?: string[];
+  catchmentUnions?: string[];
+  status: 'active' | 'inactive';
 }
 
 export interface CatchmentArea {
@@ -322,29 +348,31 @@ export interface CatchmentArea {
   name: string;
   nameBn: string;
   upazila: string;
-  unions: string[];
-  estimatedPopulation: number;
-  coverageRadiusKm: number;
-  basis: 'patient_choice' | 'operations_assignment' | 'campaign_camp' | 'field_referral' | 'assisted_walkin';
-  outOfCatchmentPolicy: 'allowed_with_capacity' | 'restricted' | 'referral_only';
+  unions?: string[];
+  estimatedPopulation?: number;
+  coverageRadiusKm?: number;
+  basis?: 'patient_choice' | 'operations_assignment' | 'campaign_camp' | 'field_referral' | 'assisted_walkin';
+  outOfCatchmentPolicy?: 'allowed_with_capacity' | 'restricted' | 'referral_only';
 }
 
 export interface AppNotification {
   id: string;
   timestamp: string;
-  category: 'appointment' | 'session' | 'queue' | 'sync' | 'equipment' | 'clinical_alert' | 'escalation';
+  category: 'appointment' | 'session' | 'queue' | 'sync' | 'equipment' | 'clinical_alert' | 'escalation' | 'system';
   title: string;
-  titleBn: string;
-  message: string;
-  messageBn: string;
-  channel: 'sms' | 'push_app' | 'internal_system';
-  recipientRoleOrPhone: string;
+  titleBn?: string;
+  message?: string;
+  messageBn?: string;
+  channel?: 'sms' | 'push_app' | 'internal_system';
+  recipientRoleOrPhone?: string;
   status: 'delivered' | 'sent' | 'pending' | 'failed';
   hubId?: string;
   hubName?: string;
-  priority: 'normal' | 'high' | 'urgent';
+  relatedType?: string;
+  relatedId?: string;
+  priority?: 'normal' | 'high' | 'urgent';
   deepLinkPath?: string;
-  acknowledged: boolean;
+  acknowledged?: boolean;
 }
 
 export interface OperationalException {
@@ -352,7 +380,7 @@ export interface OperationalException {
   code: string;
   title: string;
   titleBn: string;
-  category: 'sync_error' | 'missing_measurement' | 'unassigned_encounter' | 'wait_time_breach' | 'equipment_fault' | 'clinical_escalation';
+  category: 'sync_error' | 'missing_measurement' | 'unassigned_encounter' | 'wait_time_breach' | 'equipment_fault' | 'clinical_escalation' | 'other';
   severity: 'critical' | 'warning' | 'info';
   hubId: string;
   hubName: string;
@@ -360,7 +388,7 @@ export interface OperationalException {
   encounterId?: string;
   patientName?: string;
   createdAt: string;
-  status: 'active' | 'investigating' | 'resolved';
+  status: 'open' | 'acknowledged' | 'in_progress' | 'escalated' | 'resolved' | 'dismissed';
   details: string;
   resolutionActionText?: string;
 }

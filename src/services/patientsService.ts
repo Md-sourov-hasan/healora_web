@@ -19,25 +19,23 @@ export interface ApiPatient {
   healoraCode: string;
   fullName: string;
   fullNameBn?: string | null;
-  phone: string;
-  phoneVerified?: boolean;
-  dateOfBirth?: string;
+  maskedPhone?: string | null;
+  phone?: string | null;
+  dateOfBirth?: string | null;
+  birthYear?: number | null;
   age?: number;
-  gender: 'male' | 'female' | 'other';
-  bloodGroup?: string | null;
-  addressLine?: string | null;
-  preferredLanguage?: string;
-  emergencyContactName?: string | null;
-  emergencyContactPhone?: string | null;
+  sex: 'male' | 'female' | 'other' | 'unknown';
+  status?: string;
   registeredHubId?: string | null;
+  addressLine?: string | null;
   createdAt?: string;
 }
 
 export type PatientLookupCriteria =
-  | { by: 'healora_code'; value: string }
-  | { by: 'national_id'; value: string }
-  | { by: 'phone'; value: string }
-  | { by: 'appointment_code'; value: string };
+  | { by: 'healora_code'; value: string; hubId: string }
+  | { by: 'identifier'; identifierType: 'national_id' | 'birth_registration' | 'passport' | 'healora_card' | 'other'; value: string; hubId: string }
+  | { by: 'phone'; value: string; hubId: string }
+  | { by: 'appointment_code'; value: string; hubId: string };
 
 export interface DuplicateCandidate {
   id: string;
@@ -52,8 +50,8 @@ export const patientsService = {
   /**
    * Search for a patient by permitted identifier
    */
-  async lookup(criteria: PatientLookupCriteria): Promise<{ patient: ApiPatient | null; found: boolean }> {
-    return apiRequest<{ patient: ApiPatient | null; found: boolean }>('/patients/lookup', {
+  async lookup(criteria: PatientLookupCriteria): Promise<{ matches: ApiPatient[]; appointment: { id: string; code: string; status: string; sessionId: string; hubId: string } | null }> {
+    return apiRequest<{ matches: ApiPatient[]; appointment: { id: string; code: string; status: string; sessionId: string; hubId: string } | null }>('/patients/lookup', {
       method: 'POST',
       json: criteria,
     });
@@ -63,27 +61,39 @@ export const patientsService = {
    * Register a new patient
    */
   async register(data: {
+    hubId: string;
     fullName: string;
     fullNameBn?: string;
     phone: string;
-    gender: 'male' | 'female' | 'other';
+    sex: 'male' | 'female' | 'other' | 'unknown';
     dateOfBirth?: string;
     age?: number;
     addressLine?: string;
     nationalId?: string;
-    registeredHubId?: string;
+    regionId?: string;
   }): Promise<ApiPatient> {
-    return apiRequest<ApiPatient>('/patients', {
+    const { age, nationalId, ...fields } = data;
+    const year = Number(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Dhaka', year: 'numeric' }).format(new Date()));
+    if (age !== undefined && (!Number.isInteger(age) || age < 0 || year - age < 1900)) {
+      throw new Error('Enter a valid whole-number age, or leave age blank.');
+    }
+    const response = await apiRequest<{ patient: ApiPatient }>('/patients', {
       method: 'POST',
-      json: data,
+      json: {
+        ...fields,
+        birthYearEstimated: !data.dateOfBirth && age !== undefined ? year - age : undefined,
+        identifiers: nationalId ? [{ type: 'national_id', value: nationalId }] : undefined,
+      },
     });
+    if (!response.patient?.id) throw new Error('Patient registration did not return a patient identifier.');
+    return response.patient;
   },
 
   /**
    * Get operational patient profile by ID
    */
-  async getPatient(id: string): Promise<ApiPatient> {
-    return apiRequest<ApiPatient>(`/patients/${id}`);
+  async getPatient(id: string, hubId: string): Promise<ApiPatient> {
+    return apiRequest<ApiPatient>(`/patients/${id}`, { params: { hubId } });
   },
 
   /**
@@ -91,7 +101,7 @@ export const patientsService = {
    */
   async addIdentifier(
     patientId: string,
-    data: { identifierType: 'nid' | 'brn' | 'passport'; value: string }
+    data: { hubId: string; type: 'national_id' | 'birth_registration' | 'passport' | 'healora_card' | 'other'; value: string }
   ): Promise<{ success: boolean }> {
     return apiRequest(`/patients/${patientId}/identifiers`, {
       method: 'POST',
@@ -104,28 +114,28 @@ export const patientsService = {
    */
   async getRepresentatives(
     patientId: string
-  ): Promise<Array<{ id: string; name: string; relationship: string; phone: string; verified: boolean }>> {
+  ): Promise<{ items: Array<{ id: string; fullName: string; maskedPhone?: string | null; relationship: string; legalBasis: string; verified: boolean; revoked: boolean }> }> {
     return apiRequest(`/patients/${patientId}/representatives`);
   },
 
   /**
    * List potential duplicate patient profiles for deduplication
    */
-  async getDuplicates(): Promise<DuplicateCandidate[]> {
-    return apiRequest<DuplicateCandidate[]>('/patient-duplicates');
+  async getDuplicates(): Promise<{ items: DuplicateCandidate[] }> {
+    return apiRequest<{ items: DuplicateCandidate[] }>('/patient-duplicates');
   },
 
   /**
    * Merge two confirmed duplicate patient records
    */
   async mergeDuplicates(
-    primaryId: string,
-    secondaryId: string,
+    survivorPatientId: string,
+    mergedPatientId: string,
     reason: string
   ): Promise<{ mergedPatientId: string }> {
     return apiRequest('/patient-duplicates/merge', {
       method: 'POST',
-      json: { primaryId, secondaryId, reason },
+      json: { survivorPatientId, mergedPatientId, reason },
     });
   },
 };

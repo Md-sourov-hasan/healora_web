@@ -24,31 +24,35 @@ import { apiRequest } from './apiClient';
 export interface ApiStation {
   id: string;
   hubId: string;
-  stationNumber: number;
+  code: string;
   name: string;
   nameBn?: string | null;
-  stationType: 'reception' | 'triage_vitals' | 'consultation' | 'lab_sampling' | 'pharmacy_checkout';
-  status: 'active' | 'inactive' | 'maintenance' | 'closed';
-  currentStaffId?: string | null;
-  currentStaffName?: string | null;
+  stationType: 'registration' | 'vitals' | 'doctor_review' | 'counselling' | 'waiting' | 'other';
+  status: 'available' | 'busy' | 'paused' | 'out_of_service';
   currentTicketNumber?: string | null;
-  assignedEquipmentIds?: string[];
+  sortOrder?: number;
+  serviceTypeIds?: string[];
+  currentStaff?: { id: string; name: string | null } | null;
 }
 
 export interface ApiEquipment {
   id: string;
   hubId: string;
   stationId?: string | null;
-  deviceType: string;
-  deviceName: string;
-  deviceNameBn?: string | null;
-  modelNumber: string;
-  serialNumber: string;
+  assetTag: string;
+  category: 'bp_monitor' | 'glucometer' | 'weighing_scale' | 'stadiometer' | 'thermometer' | 'pulse_oximeter' | 'tablet' | 'printer' | 'other';
+  make?: string | null;
+  model?: string | null;
+  serialNumber?: string | null;
+  ownerName?: string | null;
   status: 'available' | 'assigned' | 'maintenance' | 'calibration_due' | 'out_of_service' | 'retired';
   batteryPercent?: number | null;
   lastSyncTime?: string | null;
-  lastCalibrationDate?: string | null;
-  nextCalibrationDate?: string | null;
+  lastCalibratedAt?: string | null;
+  nextCalibrationDue?: string | null;
+  notes?: string | null;
+  calibrationOverdue?: boolean;
+  station?: { id: string; name: string } | null;
   activeFaultDescription?: string | null;
 }
 
@@ -59,7 +63,7 @@ export const stationsEquipmentService = {
     return apiRequest<ApiStation[]>(`/hubs/${hubId}/stations`);
   },
 
-  async createStation(hubId: string, data: Partial<ApiStation>): Promise<ApiStation> {
+  async createStation(hubId: string, data: { code: string; name: string; nameBn?: string; stationType: ApiStation['stationType']; sortOrder?: number; serviceTypeIds?: string[] }): Promise<ApiStation> {
     return apiRequest<ApiStation>(`/hubs/${hubId}/stations`, {
       method: 'POST',
       json: data,
@@ -77,10 +81,10 @@ export const stationsEquipmentService = {
     return apiRequest(`/stations/${id}`, { method: 'DELETE' });
   },
 
-  async setStationStatus(id: string, status: ApiStation['status']): Promise<ApiStation> {
+  async setStationStatus(id: string, status: ApiStation['status'], reason?: string): Promise<ApiStation> {
     return apiRequest<ApiStation>(`/stations/${id}/status`, {
       method: 'POST',
-      json: { status },
+      json: { status, reason },
     });
   },
 
@@ -103,7 +107,7 @@ export const stationsEquipmentService = {
     return apiRequest<ApiEquipment>(`/equipment/${id}`);
   },
 
-  async createEquipment(data: Partial<ApiEquipment>): Promise<ApiEquipment> {
+  async createEquipment(data: { hubId: string; stationId?: string; assetTag: string; category: ApiEquipment['category']; make?: string; model?: string; serialNumber?: string; ownerName?: string; nextCalibrationDue?: string; notes?: string }): Promise<ApiEquipment> {
     return apiRequest<ApiEquipment>('/equipment', {
       method: 'POST',
       json: data,
@@ -117,25 +121,29 @@ export const stationsEquipmentService = {
     });
   },
 
-  async setEquipmentStatus(id: string, status: ApiEquipment['status']): Promise<ApiEquipment> {
+  async setEquipmentStatus(id: string, status: Exclude<ApiEquipment['status'], 'retired'>, reason: string): Promise<ApiEquipment> {
     return apiRequest<ApiEquipment>(`/equipment/${id}/status`, {
       method: 'POST',
-      json: { status },
+      json: { status, reason },
     });
   },
 
-  async reportFault(id: string, description: string, severity = 'high'): Promise<{ success: boolean }> {
+  async reportFault(id: string, notes: string, sessionId?: string, takeOutOfService = true): Promise<unknown> {
     return apiRequest(`/equipment/${id}/faults`, {
       method: 'POST',
-      json: { description, severity },
+      json: { notes, sessionId, takeOutOfService },
     });
   },
 
-  async resolveFault(id: string, resolutionNotes: string): Promise<{ success: boolean }> {
+  async resolveFault(id: string, notes: string, status: 'available' | 'assigned' | 'calibration_due' = 'available'): Promise<unknown> {
     return apiRequest(`/equipment/${id}/faults/resolve`, {
       method: 'POST',
-      json: { resolutionNotes },
+      json: { notes, status },
     });
+  },
+
+  async recordServiceEvent(id: string, data: { kind: 'inspection' | 'calibration' | 'maintenance'; notes?: string; serviceProvider?: string; nextDueOn?: string }): Promise<unknown> {
+    return apiRequest(`/equipment/${id}/service-events`, { method: 'POST', json: data });
   },
 
   async retireEquipment(id: string, reason: string): Promise<void> {
@@ -145,7 +153,7 @@ export const stationsEquipmentService = {
     });
   },
 
-  async getEquipmentEvents(id: string): Promise<Array<{ id: string; timestamp: string; eventType: string; description: string }>> {
+  async getEquipmentEvents(id: string): Promise<{ items: Array<{ id: string; occurredAt: string; kind: string; notes?: string | null }> }> {
     return apiRequest(`/equipment/${id}/events`);
   },
 };
