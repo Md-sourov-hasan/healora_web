@@ -148,6 +148,16 @@ export const authService = {
   },
 
   /**
+   * Disable own MFA with 6-digit authenticator code
+   */
+  async disableMfa(code: string): Promise<{ disabled?: boolean }> {
+    return apiRequest('/auth/staff/mfa/disable', {
+      method: 'POST',
+      json: { code },
+    });
+  },
+
+  /**
    * Get current signed-in staff profile, role assignments, and allowed navigation
    */
   async getMe(): Promise<MeResponse> {

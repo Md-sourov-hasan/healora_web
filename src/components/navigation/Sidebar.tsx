@@ -101,6 +101,7 @@ export const Sidebar: React.FC = () => {
           alertCount: unreadNotifCount > 0 ? unreadNotifCount : undefined,
         },
         { path: '/settings', label: t.navSettings, icon: PhSlidersHorizontal },
+      { path: '/catalog', label: t.navCatalog, icon: PhClipboardText },
         { path: '/audit-logs', label: t.navAuditLogs, icon: PhShieldCheck },
       ],
     },

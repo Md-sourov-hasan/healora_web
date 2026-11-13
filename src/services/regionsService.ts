@@ -54,7 +54,8 @@ export const regionsService = {
    * Get hierarchical region tree
    */
   async getRegionTree(): Promise<ApiRegion[]> {
-    return apiRequest<ApiRegion[]>('/regions/tree');
+    const res = await apiRequest<{ items: ApiRegion[] } | ApiRegion[]>('/regions/tree');
+    return Array.isArray(res) ? res : res.items || [];
   },
 
   /**

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PhUsers,
   PhClipboardText,
@@ -52,8 +52,9 @@ export const OverviewDashboard: React.FC = () => {
   const [registeredWalkIn, setRegisteredWalkIn] = useState<{ key: string; id: string } | null>(null);
 
   // New session form states
+  const dhakaToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date());
   const [newSessionTitle, setNewSessionTitle] = useState('');
-  const [newSessionDate, setNewSessionDate] = useState('');
+  const [newSessionDate, setNewSessionDate] = useState(dhakaToday);
   const [newSessionStart, setNewSessionStart] = useState('');
   const [newSessionEnd, setNewSessionEnd] = useState('');
   const [newSessionServiceTypeId, setNewSessionServiceTypeId] = useState('');
@@ -68,6 +69,15 @@ export const OverviewDashboard: React.FC = () => {
   const calibrationDueDevices = equipment.filter((eq) => eq.hubId === selectedHubId && eq.status === 'calibration_due').length;
   const activeSessions = sessions.filter((session) => session.hubId === selectedHubId && session.status === 'in_progress');
   const apiVisits = dashboardOverview?.cards.visits;
+  const todayActiveSessions = activeSessions.filter((s) => s.date === dhakaToday);
+  const selectedSession = activeSessions.find((s) => s.id === walkInSessionId);
+  const isSelectedSessionToday = selectedSession ? selectedSession.date === dhakaToday : false;
+
+  useEffect(() => {
+    if (isWalkInOpen && !walkInSessionId && todayActiveSessions.length > 0) {
+      setWalkInSessionId(todayActiveSessions[0].id);
+    }
+  }, [isWalkInOpen, todayActiveSessions, walkInSessionId]);
 
   const handleWalkInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -441,7 +451,18 @@ export const OverviewDashboard: React.FC = () => {
       >
         <form onSubmit={handleWalkInSubmit} className="flex flex-col gap-4">
           {walkInError && <p role="alert" className="rounded-xl bg-bad-bg p-3 text-sm text-bad-fg">{walkInError}</p>}
-          {activeSessions.length === 0 && <p role="status" className="text-sm text-warn-fg">No session is in progress. Start an eligible session from Sessions &amp; Health Camps before registering a walk-in.</p>}
+          {activeSessions.length === 0 ? (
+            <p role="status" className="rounded-xl bg-warn-bg p-3 text-xs font-medium text-warn-fg">
+              ⚠️ No session is currently in progress. Start an eligible session from <strong>Sessions &amp; Health Camps</strong> before registering a walk-in.
+            </p>
+          ) : todayActiveSessions.length === 0 ? (
+            <div role="status" className="rounded-xl bg-warn-bg p-3 text-xs font-medium text-warn-fg">
+              <p className="font-semibold">⚠️ No session is active for today ({dhakaToday}):</p>
+              <p className="mt-1">
+                Clinical protocol requires check-ins to happen on the scheduled session day. Currently running sessions are from other dates. Please start or create a session for <strong>{dhakaToday}</strong> in <strong>Sessions &amp; Health Camps</strong>.
+              </p>
+            </div>
+          ) : null}
           <label className="flex items-center gap-2 text-sm text-slate"><input type="checkbox" required /> I have confirmed this patient's identity.</label>
           <div>
             <label className={labelClass}>
@@ -500,10 +521,27 @@ export const OverviewDashboard: React.FC = () => {
 
       <div>
         <label className={labelClass}>Active session *</label>
-        <select required value={walkInSessionId} onChange={(e) => setWalkInSessionId(e.target.value)} className={selectClass}>
+        <select
+          required
+          value={walkInSessionId}
+          onChange={(e) => setWalkInSessionId(e.target.value)}
+          className={selectClass}
+        >
           <option value="">Choose an in-progress session</option>
-          {activeSessions.map((session) => <option key={session.id} value={session.id}>{session.title} — {session.date}</option>)}
+          {activeSessions.map((session) => {
+            const isToday = session.date === dhakaToday;
+            return (
+              <option key={session.id} value={session.id} disabled={!isToday}>
+                {session.title} — {session.date} {isToday ? '✓ (Today - Eligible)' : '⚠️ (Not Today - Check-in Disabled)'}
+              </option>
+            );
+          })}
         </select>
+        {selectedSession && !isSelectedSessionToday && (
+          <p role="alert" className="mt-1.5 rounded-lg bg-bad-bg p-2 text-xs font-semibold text-bad-fg">
+            ⚠️ This session is scheduled for {selectedSession.date}. Check-in is only allowed on the exact session date ({dhakaToday}).
+          </p>
+        )}
       </div>
 
           <WalkInSessionCapacity sessionId={isWalkInOpen ? walkInSessionId : ''} />
@@ -511,7 +549,11 @@ export const OverviewDashboard: React.FC = () => {
             <Button variant="secondary" disabled={issuingWalkIn} onClick={() => setIsWalkInOpen(false)}>
               {t.cancel}
             </Button>
-            <Button type="submit" variant="primary" disabled={issuingWalkIn || !walkInSessionId}>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={issuingWalkIn || !walkInSessionId || (selectedSession ? !isSelectedSessionToday : false)}
+            >
               Generate Token &amp; Check-in
             </Button>
           </div>

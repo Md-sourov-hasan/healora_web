@@ -10,6 +10,10 @@ import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
 import { useApp } from '../../context/AppContext';
 import type { Encounter, SyncState } from '../../types';
+import {
+  encountersExceptionsService,
+  type ApiEncounterOperational,
+} from '../../services/encountersExceptionsService';
 
 export const EncounterMonitoringView: React.FC = () => {
   const {
@@ -28,6 +32,7 @@ export const EncounterMonitoringView: React.FC = () => {
   const [syncFilter, setSyncFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [selectedEncounter, setSelectedEncounter] = useState<Encounter | null>(null);
+  const [liveOperational, setLiveOperational] = useState<ApiEncounterOperational | null>(null);
   const [isReassignOpen, setIsReassignOpen] = useState(false);
   const [newAssignedStaff, setNewAssignedStaff] = useState('');
 
@@ -44,6 +49,17 @@ export const EncounterMonitoringView: React.FC = () => {
       enc.assignedWorkerName.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSync && matchSearch;
   });
+
+  const openEncounterInspector = async (enc: Encounter) => {
+    setSelectedEncounter(enc);
+    setLiveOperational(null);
+    try {
+      const live = await encountersExceptionsService.getOperationalEncounter(enc.id);
+      setLiveOperational(live);
+    } catch {
+      // fallback to list item
+    }
+  };
 
   const getSyncStateBadge = (sync?: SyncState) => {
     switch (sync) {
@@ -68,11 +84,18 @@ export const EncounterMonitoringView: React.FC = () => {
     e.preventDefault();
     if (!selectedEncounter || !newAssignedStaff) return;
     const assignee = staff.find((member) => member.id === newAssignedStaff);
-    if (!assignee || !['field_health_worker', 'local_doctor', 'registered_doctor', 'special_team_lead'].includes(assignee.role)) {
+    if (
+      !assignee ||
+      !['field_health_worker', 'local_doctor', 'registered_doctor', 'special_team_lead'].includes(assignee.role)
+    ) {
       showToast('Choose a clinical staff account with an API role assignment.');
       return;
     }
-    reassignEncounter(selectedEncounter.id, assignee.id, assignee.role as 'field_health_worker' | 'local_doctor' | 'registered_doctor' | 'special_team_lead');
+    void reassignEncounter(
+      selectedEncounter.id,
+      assignee.id,
+      assignee.role as 'field_health_worker' | 'local_doctor' | 'registered_doctor' | 'special_team_lead'
+    );
     setIsReassignOpen(false);
   };
 
@@ -87,11 +110,10 @@ export const EncounterMonitoringView: React.FC = () => {
             </span>
             <span className="size-2 animate-pulse-live rounded-full bg-ok" />
           </div>
-          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
-            {t.navEncounters}
-          </h1>
+          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">{t.navEncounters}</h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub?.name || 'Healora Hub'} • {language === 'bn'
+            {currentHub?.name || 'Healora Hub'} •{' '}
+            {language === 'bn'
               ? 'মোবাইল অ্যাপে রেকর্ডকৃত পরিমাপের সমাপ্তি হার, সেন্ট্রাল সিঙ্ক স্বীকৃতি ও ডাক্তার রিভিউ স্থিতি'
               : 'Operational status, mobile capture completeness, idempotency keys & central backend sync states'}
           </p>
@@ -106,7 +128,7 @@ export const EncounterMonitoringView: React.FC = () => {
         </Button>
       </div>
 
-      {/* PRD Boundary Guard Notice (PRD Section 1.1 & 8.10) */}
+      {/* PRD Boundary Guard Notice */}
       <div className="mb-6 flex items-center gap-3 rounded-2xl border border-sage-200 bg-mist px-5 py-3.5 text-[13px] text-pine">
         <PhShieldCheck size={20} color="#1D6B66" />
         <div className="flex-1">
@@ -138,9 +160,13 @@ export const EncounterMonitoringView: React.FC = () => {
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Pending Mobile Outbox</div>
           <div className="mt-1 text-3xl font-bold text-amber">
-            {hubEncounters.filter((e) => ['pending_local', 'sync_failed', 'retrying'].includes(e.syncState ?? '')).length}
+            {
+              hubEncounters.filter((e) =>
+                ['pending_local', 'sync_failed', 'retrying'].includes(e.syncState ?? '')
+              ).length
+            }
           </div>
-          <div className="mt-1 text-xs text-amber font-semibold">Offline captures awaiting sync</div>
+          <div className="mt-1 text-xs font-semibold text-amber">Offline captures awaiting sync</div>
         </Card>
       </div>
 
@@ -172,7 +198,7 @@ export const EncounterMonitoringView: React.FC = () => {
             <option value="completed">Completed</option>
           </select>
 
-          <span className="font-semibold text-slate ml-2">Sync:</span>
+          <span className="ml-2 font-semibold text-slate">Sync:</span>
           <select
             value={syncFilter}
             onChange={(e) => setSyncFilter(e.target.value)}
@@ -208,71 +234,81 @@ export const EncounterMonitoringView: React.FC = () => {
                     <PhShieldCheck size={24} />
                   </div>
                   <p className="font-semibold text-ink">No encounters recorded</p>
-                  <p className="text-xs text-slate">Encounters initiated by field health workers and reception staff will be tracked here in real time.</p>
+                  <p className="text-xs text-slate">
+                    Encounters initiated by field health workers and reception staff will be tracked here in real time.
+                  </p>
                 </td>
               </tr>
             ) : (
               filtered.map((enc) => (
-              <tr key={enc.id} className="transition-colors hover:bg-mist/30">
-                <td className="px-5 py-4">
-                  <div className="font-mono text-xs font-bold text-teal">{enc.encounterCode}</div>
-                  <div className="text-[11px] text-slate">Opened: {enc.openedAt}</div>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="font-semibold text-ink">{language === 'bn' ? enc.patientNameBn : enc.patientName}</div>
-                  <div className="font-mono text-xs text-slate">{enc.patientId}</div>
-                </td>
-                <td className="px-5 py-4 text-xs">
-                  <div>HW: <strong className="text-ink">{enc.assignedWorkerName}</strong></div>
-                  {enc.reviewingDoctorName && (
-                    <div className="text-slate">Review: {enc.reviewingDoctorName}</div>
-                  )}
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    {enc.completenessPercentage == null ? (
-                      <span className="text-xs text-slate">Not reported</span>
-                    ) : (
-                      <>
-                        <div className="h-2 w-16 overflow-hidden rounded-full bg-line">
-                          <div
-                            className={`h-full ${enc.completenessPercentage === 100 ? 'bg-ok' : 'bg-amber'}`}
-                            style={{ width: `${enc.completenessPercentage}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-ink">{enc.completenessPercentage}%</span>
-                      </>
-                    )}
-                  </div>
-                  {enc.missingObservationsCount != null && enc.missingObservationsCount > 0 && (
-                    <div className="text-[11px] font-semibold text-amber">
-                      {enc.missingObservationsCount} protocol items missing
+                <tr key={enc.id} className="transition-colors hover:bg-mist/30">
+                  <td className="px-5 py-4">
+                    <div className="font-mono text-xs font-bold text-teal">{enc.encounterCode}</div>
+                    <div className="text-[11px] text-slate">Opened: {enc.openedAt}</div>
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="font-semibold text-ink">
+                      {language === 'bn' ? enc.patientNameBn : enc.patientName}
                     </div>
-                  )}
-                </td>
-                <td className="px-5 py-4">
-                  {getSyncStateBadge(enc.syncState)}
-                  <div className="text-[11px] text-slate mt-0.5">{enc.lastSyncAttempt}</div>
-                </td>
-                <td className="px-5 py-4">
-                  <StatusPill
-                    label={enc.status.replace(/_/g, ' ').toUpperCase()}
-                    variant={enc.status === 'completed' || enc.status === 'reviewed' ? 'completed' : 'active'}
-                  />
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedEncounter(enc)}
-                      className="cursor-pointer text-xs font-semibold text-teal hover:underline"
-                    >
-                      Inspect
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))
+                    <div className="font-mono text-xs text-slate">{enc.patientId}</div>
+                  </td>
+                  <td className="px-5 py-4 text-xs">
+                    <div>
+                      HW: <strong className="text-ink">{enc.assignedWorkerName}</strong>
+                    </div>
+                    {enc.reviewingDoctorName && (
+                      <div className="text-slate">Review: {enc.reviewingDoctorName}</div>
+                    )}
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      {enc.completenessPercentage == null ? (
+                        <span className="text-xs text-slate">Not reported</span>
+                      ) : (
+                        <>
+                          <div className="h-2 w-16 overflow-hidden rounded-full bg-line">
+                            <div
+                              className={`h-full ${
+                                enc.completenessPercentage === 100 ? 'bg-ok' : 'bg-amber'
+                              }`}
+                              style={{ width: `${enc.completenessPercentage}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-ink">{enc.completenessPercentage}%</span>
+                        </>
+                      )}
+                    </div>
+                    {enc.missingObservationsCount != null && enc.missingObservationsCount > 0 && (
+                      <div className="text-[11px] font-semibold text-amber">
+                        {enc.missingObservationsCount} protocol items missing
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-5 py-4">
+                    {getSyncStateBadge(enc.syncState)}
+                    <div className="mt-0.5 text-[11px] text-slate">{enc.lastSyncAttempt}</div>
+                  </td>
+                  <td className="px-5 py-4">
+                    <StatusPill
+                      label={enc.status.replace(/_/g, ' ').toUpperCase()}
+                      variant={
+                        enc.status === 'completed' || enc.status === 'reviewed' ? 'completed' : 'active'
+                      }
+                    />
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void openEncounterInspector(enc)}
+                        className="cursor-pointer text-xs font-semibold text-teal hover:underline"
+                      >
+                        Inspect Operational
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
@@ -288,7 +324,9 @@ export const EncounterMonitoringView: React.FC = () => {
           <div className="space-y-4">
             <div className="rounded-xl bg-bone p-4">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-sm font-bold text-teal">{selectedEncounter.encounterCode}</span>
+                <span className="font-mono text-sm font-bold text-teal">
+                  {selectedEncounter.encounterCode}
+                </span>
                 {getSyncStateBadge(selectedEncounter.syncState)}
               </div>
               <div className="mt-2 text-sm text-ink">
@@ -297,70 +335,75 @@ export const EncounterMonitoringView: React.FC = () => {
               <div className="text-xs text-slate">
                 Assigned Health Worker: <strong>{selectedEncounter.assignedWorkerName}</strong>
               </div>
-              {selectedEncounter.idempotencyKey && <div className="text-xs text-slate">Idempotency Key: <span className="font-mono">{selectedEncounter.idempotencyKey}</span></div>}
-            </div>
-
-            {/* Read-only Observations Summary */}
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <h4 className="m-0 text-xs font-bold uppercase tracking-wider text-slate">
-                  Mobile Submitted Observations ({selectedEncounter.observations?.length ?? 'not included'})
-                </h4>
-                {selectedEncounter.observations && <span className="text-[11px] text-teal font-semibold">Attested via Special Team App</span>}
-              </div>
-
-              {!selectedEncounter.observations ? (
-                <div className="rounded-xl border border-dashed border-line p-4 text-center text-xs text-slate">
-                  Observation details are not included in the operational summary returned by the API.
-                </div>
-              ) : selectedEncounter.observations.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-line p-4 text-center text-xs text-slate">
-                  No vitals observations submitted yet for this encounter.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedEncounter.observations.map((obs, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex items-center justify-between rounded-xl border p-3 text-xs ${
-                        obs.isAbnormal ? 'border-amber/50 bg-amber-50/50' : 'border-line bg-paper'
-                      }`}
-                    >
-                      <div>
-                        <div className="font-semibold text-ink">{obs.name}</div>
-                        <div className="text-slate">
-                          Time: {obs.measuredAt} • Device: <span className="font-mono text-teal">{obs.deviceId || 'Attributed'}</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`text-base font-bold ${obs.isAbnormal ? 'text-bad' : 'text-ink'}`}>
-                          {obs.value} <span className="text-xs font-normal text-slate">{obs.unit}</span>
-                        </div>
-                        {obs.isAbnormal && (
-                          <span className="rounded bg-bad-bg px-1.5 py-0.5 text-[10px] font-bold text-bad-fg">
-                            Flagged for Review
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              {liveOperational?.queueTicket && (
+                <div className="mt-1 text-xs text-slate">
+                  Queue Ticket: <span className="font-mono">{liveOperational.queueTicket.displayCode}</span> (
+                  {liveOperational.queueTicket.status})
                 </div>
               )}
             </div>
 
-            {selectedEncounter.dispositionNotes && (
-              <div className="rounded-xl bg-mist p-3.5 text-xs text-pine">
-                <strong>Local Doctor Assessment / Disposition:</strong>
-                <p className="mt-1 mb-0">{selectedEncounter.dispositionNotes}</p>
+            {liveOperational?.completeness && (
+              <div className="rounded-xl border border-line p-3.5 text-xs">
+                <div className="mb-2 font-semibold text-ink">
+                  Live Protocol Completeness (/encounters/{'{id}'}/operational)
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-slate">
+                  <div>
+                    Required Total: <strong className="text-ink">{liveOperational.completeness.requiredTotal}</strong>
+                  </div>
+                  <div>
+                    Captured: <strong className="text-ok-fg">{liveOperational.completeness.captured}</strong>
+                  </div>
+                  <div>
+                    Pending: <strong className="text-warn-fg">{liveOperational.completeness.pending}</strong>
+                  </div>
+                  <div>
+                    Missing w/ Reason: <strong>{liveOperational.completeness.missingWithReason}</strong>
+                  </div>
+                  <div>
+                    Waived: <strong>{liveOperational.completeness.waived}</strong>
+                  </div>
+                  <div>
+                    Optional Captured: <strong>{liveOperational.completeness.optionalCaptured}</strong>
+                  </div>
+                </div>
               </div>
             )}
 
-            <div className="pt-2 flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => setIsReassignOpen(true)}
-                className="w-full"
-              >
+            {liveOperational?.sync && (
+              <div className="rounded-xl border border-line p-3.5 text-xs">
+                <div className="mb-1.5 font-semibold text-ink">Mobile Outbox Sync Telemetry</div>
+                <div className="space-y-1 text-slate">
+                  <div>
+                    State: <strong>{liveOperational.sync.state}</strong> • Accepted batches:{' '}
+                    {liveOperational.sync.accepted} • Failed unresolved: {liveOperational.sync.failedUnresolved}
+                  </div>
+                  {liveOperational.sync.lastServerAckAt && (
+                    <div>Last Server Ack: {new Date(liveOperational.sync.lastServerAckAt).toLocaleString()}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {liveOperational?.assignments && liveOperational.assignments.length > 0 && (
+              <div className="rounded-xl border border-line p-3.5 text-xs">
+                <div className="mb-1.5 font-semibold text-ink">Care Team Assignment History</div>
+                <div className="space-y-1">
+                  {liveOperational.assignments.map((a) => (
+                    <div key={a.id} className="flex justify-between text-slate">
+                      <span>
+                        <strong className="text-ink">{a.name || a.userId}</strong> ({a.role})
+                      </span>
+                      <span>{a.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setIsReassignOpen(true)} className="w-full">
                 Reassign to Different Worker
               </Button>
             </div>
@@ -376,11 +419,14 @@ export const EncounterMonitoringView: React.FC = () => {
       >
         <form onSubmit={handleReassignSubmit} className="space-y-4">
           <div className="text-xs text-slate">
-            Select an API assigned clinical staff account for encounter <strong className="text-ink">{selectedEncounter?.encounterCode}</strong>.
+            Select an API assigned clinical staff account for encounter{' '}
+            <strong className="text-ink">{selectedEncounter?.encounterCode}</strong>.
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Select Assigned Staff Member</label>
+            <label className="mb-1 block text-xs font-semibold text-slate">
+              Select Assigned Staff Member
+            </label>
             <select
               required
               value={newAssignedStaff}
@@ -389,7 +435,11 @@ export const EncounterMonitoringView: React.FC = () => {
             >
               <option value="">Select staff...</option>
               {staff
-                .filter((s) => ['field_health_worker', 'local_doctor', 'registered_doctor', 'special_team_lead'].includes(s.role))
+                .filter((s) =>
+                  ['field_health_worker', 'local_doctor', 'registered_doctor', 'special_team_lead'].includes(
+                    s.role
+                  )
+                )
                 .map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.fullName} — {s.roleTitle}
@@ -399,8 +449,12 @@ export const EncounterMonitoringView: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-2 pt-3">
-            <Button variant="secondary" onClick={() => setIsReassignOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Confirm Reassignment</Button>
+            <Button variant="secondary" onClick={() => setIsReassignOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              Confirm Reassignment
+            </Button>
           </div>
         </form>
       </ModalSheet>

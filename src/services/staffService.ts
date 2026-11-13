@@ -49,6 +49,25 @@ export interface ApiRoleAssignment {
   user?: { id: string; name: string; nameBn?: string | null; status?: ApiUser['status'] };
 }
 
+export interface ApiStaffCredential {
+  id: string;
+  userId: string;
+  professionalDesignation: string;
+  qualification: string;
+  registrationBody?: string | null;
+  registrationNumber?: string | null;
+  issuedAt?: string | null;
+  expiresAt?: string | null;
+  permittedObservationCodes?: string[];
+  qualifiesForRoles: string[];
+  trainingCompletedAt?: string | null;
+  evidenceRef?: string | null;
+  displayOnPatientRecord?: boolean;
+  status: 'pending' | 'verified' | 'rejected' | 'expired' | 'suspended';
+  verifiedAt?: string | null;
+  user?: { id: string; name: string; status?: string } | null;
+}
+
 export interface ApiShift {
   id: string;
   userId: string;
@@ -63,6 +82,8 @@ export interface ApiShift {
   hubName?: string;
   user?: { id: string; name: string; nameBn?: string | null };
   station?: { id: string; code: string; name: string } | null;
+  hub?: { id: string; code: string; name: string; addressLine?: string | null; contactPhone?: string | null } | null;
+  session?: { id: string; title?: string | null; status: string; startsAt: string; endsAt: string } | null;
 }
 
 export const staffService = {
@@ -152,6 +173,69 @@ export const staffService = {
     });
   },
 
+  async revokeUserSessions(userId: string, reason: string): Promise<{ revoked: boolean }> {
+    return apiRequest(`/auth/admin/users/${userId}/revoke-sessions`, {
+      method: 'POST',
+      json: { reason },
+    });
+  },
+
+  async getUserRoleAssignments(userId: string, includeRevoked = false): Promise<{ items: ApiRoleAssignment[] }> {
+    return apiRequest(`/admin/users/${userId}/role-assignments`, {
+      params: { includeRevoked },
+    });
+  },
+
+  // ---- CREDENTIALS ----
+
+  async getUserCredentials(userId: string): Promise<{ items: ApiStaffCredential[] }> {
+    return apiRequest(`/admin/users/${userId}/credentials`);
+  },
+
+  async addUserCredential(
+    userId: string,
+    data: {
+      professionalDesignation: string;
+      qualification: string;
+      registrationBody?: string | null;
+      registrationNumber?: string | null;
+      issuedAt?: string | null;
+      expiresAt?: string | null;
+      permittedObservationCodes?: string[];
+      qualifiesForRoles: string[];
+      trainingCompletedAt?: string | null;
+      evidenceRef?: string | null;
+      displayOnPatientRecord?: boolean;
+    }
+  ): Promise<ApiStaffCredential> {
+    return apiRequest(`/admin/users/${userId}/credentials`, {
+      method: 'POST',
+      json: data,
+    });
+  },
+
+  async getCredentials(params?: {
+    status?: 'pending' | 'verified' | 'rejected' | 'expired' | 'suspended';
+    expiringBefore?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ items: ApiStaffCredential[]; limit: number; offset: number }> {
+    return apiRequest('/admin/credentials', {
+      params: params as Record<string, string | number>,
+    });
+  },
+
+  async decideCredential(
+    id: string,
+    action: 'verify' | 'reject' | 'suspend' | 'expire',
+    reason?: string
+  ): Promise<{ credential: ApiStaffCredential; revokedAssignments: unknown[] }> {
+    return apiRequest(`/admin/credentials/${id}/${action}`, {
+      method: 'POST',
+      json: reason ? { reason } : {},
+    });
+  },
+
   // ---- SHIFTS & ROSTERING ----
 
   async getShifts(params?: {
@@ -164,13 +248,23 @@ export const staffService = {
     return apiRequest<{ items: ApiShift[]; limit: number; offset: number }>('/shifts', { params: params as Record<string, string> });
   },
 
+  async getMyShifts(params?: { from?: string; to?: string }): Promise<ApiShift[]> {
+    return apiRequest<ApiShift[]>('/shifts/mine', { params: params as Record<string, string> });
+  },
+
+  async getShift(id: string): Promise<ApiShift> {
+    return apiRequest<ApiShift>(`/shifts/${id}`);
+  },
+
   async createShift(data: {
     userId: string;
     hubId: string;
     role: string;
     startsAt: string;
     endsAt: string;
+    sessionId?: string;
     stationId?: string;
+    overlapOverrideReason?: string;
   }): Promise<ApiShift> {
     return apiRequest<ApiShift>('/shifts', {
       method: 'POST',
@@ -184,6 +278,10 @@ export const staffService = {
 
   async cancelShift(id: string, reason: string): Promise<ApiShift> {
     return apiRequest<ApiShift>(`/shifts/${id}/cancel`, { method: 'POST', json: { reason } });
+  },
+
+  async markShiftAbsent(id: string, reason: string): Promise<ApiShift> {
+    return apiRequest<ApiShift>(`/shifts/${id}/absent`, { method: 'POST', json: { reason } });
   },
 
   async checkInShift(id: string): Promise<ApiShift> {

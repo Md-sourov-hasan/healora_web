@@ -56,6 +56,26 @@ export interface ApiEquipment {
   activeFaultDescription?: string | null;
 }
 
+export interface ApiSessionEquipmentLink {
+  id: string;
+  sessionId: string;
+  equipmentId: string;
+  stationId?: string | null;
+  mandatory: boolean;
+  equipment?: {
+    id: string;
+    assetTag: string;
+    category: ApiEquipment['category'];
+    make?: string | null;
+    model?: string | null;
+    status: ApiEquipment['status'];
+    nextCalibrationDue?: string | null;
+    supportedObservationCodes?: string[];
+    supportedUnits?: string[];
+  } | null;
+  station?: { id: string; code: string; name: string } | null;
+}
+
 export const stationsEquipmentService = {
   // ---- STATIONS ----
 
@@ -70,14 +90,14 @@ export const stationsEquipmentService = {
     });
   },
 
-  async updateStation(id: string, data: Partial<ApiStation>): Promise<ApiStation> {
+  async updateStation(id: string, data: Partial<Pick<ApiStation, 'name' | 'nameBn' | 'stationType' | 'sortOrder'>>): Promise<ApiStation> {
     return apiRequest<ApiStation>(`/stations/${id}`, {
       method: 'PATCH',
       json: data,
     });
   },
 
-  async deleteStation(id: string): Promise<void> {
+  async deleteStation(id: string): Promise<{ deleted: boolean }> {
     return apiRequest(`/stations/${id}`, { method: 'DELETE' });
   },
 
@@ -85,6 +105,17 @@ export const stationsEquipmentService = {
     return apiRequest<ApiStation>(`/stations/${id}/status`, {
       method: 'POST',
       json: { status, reason },
+    });
+  },
+
+  async getStationServiceTypes(id: string): Promise<Array<{ id: string; code: string; name: string }>> {
+    return apiRequest(`/stations/${id}/service-types`);
+  },
+
+  async setStationServiceTypes(id: string, serviceTypeIds: string[]): Promise<{ stationId: string; serviceTypeIds: string[] }> {
+    return apiRequest(`/stations/${id}/service-types`, {
+      method: 'PUT',
+      json: { serviceTypeIds },
     });
   },
 
@@ -153,8 +184,30 @@ export const stationsEquipmentService = {
     });
   },
 
-  async getEquipmentEvents(id: string): Promise<{ items: Array<{ id: string; occurredAt: string; kind: string; notes?: string | null }> }> {
+  async getEquipmentEvents(id: string): Promise<{ items: Array<{ id: string; occurredAt: string; kind: string; notes?: string | null; statusFrom?: string | null; statusTo?: string | null; serviceProvider?: string | null; nextDueOn?: string | null; reportedBy?: { id: string; name: string } | null }> }> {
     return apiRequest(`/equipment/${id}/events`);
+  },
+
+  // ---- SESSION EQUIPMENT ALLOCATION ----
+
+  async getSessionEquipment(sessionId: string): Promise<ApiSessionEquipmentLink[]> {
+    return apiRequest(`/sessions/${sessionId}/equipment`);
+  },
+
+  async assignSessionEquipment(
+    sessionId: string,
+    data: { equipmentId: string; stationId?: string; mandatory?: boolean }
+  ): Promise<ApiSessionEquipmentLink> {
+    return apiRequest(`/sessions/${sessionId}/equipment`, {
+      method: 'POST',
+      json: data,
+    });
+  },
+
+  async unassignSessionEquipment(sessionId: string, equipmentId: string): Promise<{ unassigned: boolean }> {
+    return apiRequest(`/sessions/${sessionId}/equipment/${equipmentId}`, {
+      method: 'DELETE',
+    });
   },
 };
 

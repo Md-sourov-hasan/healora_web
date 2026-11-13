@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   PhShieldCheck,
   PhCheckCircle,
@@ -15,7 +15,8 @@ import { ModalSheet } from '../common/ModalSheet';
 import { useApp } from '../../context/AppContext';
 import { ROLES_CONFIG, CORE_OPERATIONS_ROLES, toUiRole } from '../../config/rolesConfig';
 import { regionsService, type ApiRegion } from '../../services/regionsService';
-import { staffService, type ApiUser } from '../../services/staffService';
+import { staffService, type ApiUser, type ApiStaffCredential } from '../../services/staffService';
+import { authService } from '../../services/authService';
 import type { UserRole } from '../../types';
 import { isBreakGlassActive, reportsAuditService, type BreakGlassLog } from '../../services/reportsAuditService';
 import { patientsService, type ApiPatient } from '../../services/patientsService';
@@ -56,7 +57,9 @@ export const SettingsPermissionsView: React.FC = () => {
   const [breakGlassReviewNotes, setBreakGlassReviewNotes] = useState<Record<string, string>>({});
   const [reviewingBreakGlassId, setReviewingBreakGlassId] = useState<string | null>(null);
   const canReviewBreakGlass = availableRoles.includes('platform_super_admin') || availableRoles.includes('auditor');
-  const canRequestBreakGlass = availableRoles.some((role) => ['local_doctor', 'registered_doctor', 'special_team_lead', 'field_health_worker'].includes(role));
+  const canRequestBreakGlass = availableRoles.some((role) =>
+    ['local_doctor', 'registered_doctor', 'special_team_lead', 'field_health_worker'].includes(role)
+  );
 
   // Modal State for API Role Assignment
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -70,21 +73,111 @@ export const SettingsPermissionsView: React.FC = () => {
   const [isLoadingAssignmentOptions, setIsLoadingAssignmentOptions] = useState(false);
   const [assignmentOptionsError, setAssignmentOptionsError] = useState<string | null>(null);
 
+  // Credentials Governance state
+  const [credentialsList, setCredentialsList] = useState<ApiStaffCredential[]>([]);
+  const [credDecisionReason, setCredDecisionReason] = useState('');
+
+  // Auth Sessions & MFA disable modal state
+  const [isAuthSessionsOpen, setIsAuthSessionsOpen] = useState(false);
+  const [authSessions, setAuthSessions] = useState<
+    Array<{ id: string; createdAt: string; current: boolean; userAgent?: string }>
+  >([]);
+  const [disableMfaCode, setDisableMfaCode] = useState('');
+
+  const loadCredentials = useCallback(async () => {
+    try {
+      const res = await staffService.getCredentials({ limit: 50 });
+      setCredentialsList(res.items ?? []);
+    } catch {
+      setCredentialsList([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCredentials();
+  }, [loadCredentials]);
+
   useEffect(() => {
     let mounted = true;
     if (canReviewBreakGlass) {
-      reportsAuditService.getBreakGlassList().then((response) => {
-        if (!mounted) return;
-        setActiveBreakGlass(response.items.filter(isBreakGlassActive));
-        setPendingBreakGlassReview(response.items.filter((entry) => (entry.reviewOutcome ?? 'pending') === 'pending'));
-      }).catch((error) => { if (mounted) showToast(error instanceof Error ? error.message : 'Break-glass records unavailable.'); });
+      reportsAuditService
+        .getBreakGlassList()
+        .then((response) => {
+          if (!mounted) return;
+          setActiveBreakGlass(response.items.filter(isBreakGlassActive));
+          setPendingBreakGlassReview(
+            response.items.filter((entry) => (entry.reviewOutcome ?? 'pending') === 'pending')
+          );
+        })
+        .catch((error) => {
+          if (mounted) showToast(error instanceof Error ? error.message : 'Break-glass records unavailable.');
+        });
     }
     if (canRequestBreakGlass) {
-      reportsAuditService.getMyBreakGlass().then((response) => { if (mounted) setMyBreakGlass(response.items); })
-        .catch((error) => { if (mounted) showToast(error instanceof Error ? error.message : 'Your break-glass records are unavailable.'); });
+      reportsAuditService
+        .getMyBreakGlass()
+        .then((response) => {
+          if (mounted) setMyBreakGlass(response.items);
+        })
+        .catch((error) => {
+          if (mounted) showToast(error instanceof Error ? error.message : 'Your break-glass records are unavailable.');
+        });
     }
-    return () => { mounted = false; };
-  }, [canReviewBreakGlass, canRequestBreakGlass]);
+    return () => {
+      mounted = false;
+    };
+  }, [canReviewBreakGlass, canRequestBreakGlass, showToast]);
+
+  const openAuthSessionsModal = async () => {
+    setIsAuthSessionsOpen(true);
+    try {
+      const list = await authService.getSessions();
+      setAuthSessions(Array.isArray(list) ? list : []);
+    } catch {
+      setAuthSessions([]);
+    }
+  };
+
+  const handleRevokeAuthSession = async (sessionId: string) => {
+    try {
+      await authService.revokeSession(sessionId);
+      const list = await authService.getSessions();
+      setAuthSessions(Array.isArray(list) ? list : []);
+      showToast('Session terminated.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not terminate session.');
+    }
+  };
+
+  const handleDisableOwnMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!disableMfaCode.trim()) return;
+    try {
+      await authService.disableMfa(disableMfaCode.trim());
+      setDisableMfaCode('');
+      await refreshBackendData();
+      showToast('MFA disabled for your account.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to disable MFA.');
+    }
+  };
+
+  const handleDecideCredential = async (
+    credId: string,
+    action: 'verify' | 'reject' | 'suspend' | 'expire'
+  ) => {
+    try {
+      await staffService.decideCredential(
+        credId,
+        action,
+        credDecisionReason.trim() || `Credential ${action} action`
+      );
+      await loadCredentials();
+      showToast(`Credential ${action} succeeded.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : `Failed to ${action} credential.`);
+    }
+  };
 
   const openAssignRoleModal = async () => {
     setIsAssignModalOpen(true);
@@ -98,7 +191,9 @@ export const SettingsPermissionsView: React.FC = () => {
       setBackendUsers(usersResult.items.filter((user) => user.status !== 'disabled'));
       setBackendRegions(regionsResult.items.filter((region) => region.active));
     } catch (err) {
-      setAssignmentOptionsError(err instanceof Error ? err.message : 'Could not load staff and regions from the backend.');
+      setAssignmentOptionsError(
+        err instanceof Error ? err.message : 'Could not load staff and regions from the backend.'
+      );
     } finally {
       setIsLoadingAssignmentOptions(false);
     }
@@ -147,17 +242,30 @@ export const SettingsPermissionsView: React.FC = () => {
   const handleBreakGlassLookup = async () => {
     if (!selectedHubId || !breakGlassPatientQuery.trim()) return;
     try {
-      const result = await patientsService.lookup({ by: 'phone', value: breakGlassPatientQuery.trim(), hubId: selectedHubId });
+      const result = await patientsService.lookup({
+        by: 'phone',
+        value: breakGlassPatientQuery.trim(),
+        hubId: selectedHubId,
+      });
       setBreakGlassPatients(result.matches);
       setBreakGlassPatientId('');
-    } catch (error) { showToast(error instanceof Error ? error.message : 'Patient lookup failed.'); }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Patient lookup failed.');
+    }
   };
 
   const handleBreakGlass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!breakGlassPatientId || breakGlassReason.trim().length < 20) { showToast('Select a patient and provide a reason of at least 20 characters.'); return; }
+    if (!breakGlassPatientId || breakGlassReason.trim().length < 20) {
+      showToast('Select a patient and provide a reason of at least 20 characters.');
+      return;
+    }
     try {
-      await reportsAuditService.requestBreakGlass({ patientId: breakGlassPatientId, reason: breakGlassReason.trim(), durationMinutes: breakGlassDuration });
+      await reportsAuditService.requestBreakGlass({
+        patientId: breakGlassPatientId,
+        reason: breakGlassReason.trim(),
+        durationMinutes: breakGlassDuration,
+      });
       if (canRequestBreakGlass) {
         const mine = await reportsAuditService.getMyBreakGlass();
         setMyBreakGlass(mine.items);
@@ -165,36 +273,59 @@ export const SettingsPermissionsView: React.FC = () => {
       if (canReviewBreakGlass) {
         const response = await reportsAuditService.getBreakGlassList();
         setActiveBreakGlass(response.items.filter(isBreakGlassActive));
-        setPendingBreakGlassReview(response.items.filter((entry) => (entry.reviewOutcome ?? 'pending') === 'pending'));
+        setPendingBreakGlassReview(
+          response.items.filter((entry) => (entry.reviewOutcome ?? 'pending') === 'pending')
+        );
       }
       setBreakGlassReason('');
       showToast('Break-glass request accepted by the backend.');
-    } catch (error) { showToast(error instanceof Error ? error.message : 'Break-glass request failed.'); }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Break-glass request failed.');
+    }
   };
 
   const endBreakGlass = async (id: string) => {
     try {
       await reportsAuditService.endBreakGlass(id);
       setActiveBreakGlass((items) => items.filter((item) => item.id !== id));
-      setMyBreakGlass((items) => items.map((item) => item.id === id ? { ...item, endedAt: new Date().toISOString() } : item));
+      setMyBreakGlass((items) =>
+        items.map((item) => (item.id === id ? { ...item, endedAt: new Date().toISOString() } : item))
+      );
       showToast('Break-glass session ended by the backend.');
-    } catch (error) { showToast(error instanceof Error ? error.message : 'Could not end break-glass session.'); }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not end break-glass session.');
+    }
   };
 
   const reviewBreakGlass = async (entry: BreakGlassLog, outcome: 'justified' | 'not_justified') => {
     const notes = breakGlassReviewNotes[entry.id]?.trim();
-    if (entry.userId === currentUser?.id) { showToast('You cannot review your own break-glass access.'); return; }
-    if (outcome === 'not_justified' && !notes) { showToast('Add review notes before marking access not justified.'); return; }
+    if (entry.userId === currentUser?.id) {
+      showToast('You cannot review your own break-glass access.');
+      return;
+    }
+    if (outcome === 'not_justified' && !notes) {
+      showToast('Add review notes before marking access not justified.');
+      return;
+    }
     setReviewingBreakGlassId(entry.id);
     try {
       await reportsAuditService.reviewBreakGlass(entry.id, outcome, notes || undefined);
       const response = await reportsAuditService.getBreakGlassList();
       setActiveBreakGlass(response.items.filter(isBreakGlassActive));
-      setPendingBreakGlassReview(response.items.filter((item) => (item.reviewOutcome ?? 'pending') === 'pending'));
-      setBreakGlassReviewNotes((items) => { const next = { ...items }; delete next[entry.id]; return next; });
+      setPendingBreakGlassReview(
+        response.items.filter((item) => (item.reviewOutcome ?? 'pending') === 'pending')
+      );
+      setBreakGlassReviewNotes((items) => {
+        const next = { ...items };
+        delete next[entry.id];
+        return next;
+      });
       showToast('Break-glass review recorded by the backend.');
-    } catch (error) { showToast(error instanceof Error ? error.message : 'Break-glass review failed.'); }
-    finally { setReviewingBreakGlassId(null); }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Break-glass review failed.');
+    } finally {
+      setReviewingBreakGlassId(null);
+    }
   };
 
   return (
@@ -207,42 +338,80 @@ export const SettingsPermissionsView: React.FC = () => {
           </span>
           <StatusPill label="Backend-managed authorization" variant="active" />
         </div>
-        <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
-          {t.navSettings}
-        </h1>
+        <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">{t.navSettings}</h1>
         <p className="mt-1 mb-0 text-sm text-slate">
           {language === 'bn'
             ? 'ভূমিকাভিত্তিক অনুমতি (RBAC/ABAC), বাংলাদেশ স্বাস্থ্য তথ্য সুরক্ষা গেজেট ২০২৬ ও অপারেশনাল থ্রেশহোল্ড'
-            : 'Backend account identity, assigned role scopes, and controls available through the API'}
+            : 'Backend account identity, assigned role scopes, clinical credentials, and controls available through the API'}
         </p>
       </div>
 
       <div className="mb-8 grid grid-cols-3 gap-5">
         <Card variant="card" className="border-t-3! border-t-teal!">
-          <div className="mb-2.5 flex items-center gap-2"><PhShieldCheck size={20} color="#1D6B66" /><h2 className="m-0 text-[15px] font-semibold text-ink">Backend API status</h2></div>
-          <p className="mt-0 mb-2.5 text-[13px] text-slate">Connection status and latency from live backend requests.</p>
-          <StatusPill label={apiStatus} variant={apiStatus === 'connected' ? 'active' : apiStatus === 'connecting' ? 'awaiting' : 'declined'} />
-          <p className="mb-0 mt-2 text-xs text-slate">Latency: {apiLatency === null ? 'Not reported' : `${apiLatency} ms`} · API errors: {apiErrors.length}</p>
+          <div className="mb-2.5 flex items-center gap-2">
+            <PhShieldCheck size={20} color="#1D6B66" />
+            <h2 className="m-0 text-[15px] font-semibold text-ink">Backend API status</h2>
+          </div>
+          <p className="mt-0 mb-2.5 text-[13px] text-slate">
+            Connection status and latency from live backend requests.
+          </p>
+          <StatusPill
+            label={apiStatus}
+            variant={apiStatus === 'connected' ? 'active' : apiStatus === 'connecting' ? 'awaiting' : 'declined'}
+          />
+          <p className="mb-0 mt-2 text-xs text-slate">
+            Latency: {apiLatency === null ? 'Not reported' : `${apiLatency} ms`} · API errors: {apiErrors.length}
+          </p>
         </Card>
         <Card variant="card" className="border-t-3! border-t-teal!">
-          <div className="mb-2.5 flex items-center gap-2"><PhMapPin size={20} color="#1D6B66" /><h2 className="m-0 text-[15px] font-semibold text-ink">Signed-in backend account</h2></div>
-          <p className="mt-0 mb-2.5 text-[13px] text-slate">Identity returned by the authenticated profile endpoint.</p>
+          <div className="mb-2.5 flex items-center gap-2">
+            <PhMapPin size={20} color="#1D6B66" />
+            <h2 className="m-0 text-[15px] font-semibold text-ink">Signed-in backend account</h2>
+          </div>
+          <p className="mt-0 mb-2.5 text-[13px] text-slate">
+            Identity returned by the authenticated profile endpoint.
+          </p>
           <div className="text-sm font-semibold text-ink">{currentUser?.name || 'No account returned'}</div>
           <div className="mt-1 break-all text-xs text-slate">{currentUser?.email || 'Email not returned'}</div>
-          <StatusPill label={currentUser?.status || 'Status not returned'} variant={currentUser?.status === 'active' ? 'active' : 'draft'} className="mt-2" />
+          <div className="mt-2 flex items-center justify-between">
+            <StatusPill
+              label={currentUser?.status || 'Status not returned'}
+              variant={currentUser?.status === 'active' ? 'active' : 'draft'}
+            />
+            <Button variant="small" onClick={() => void openAuthSessionsModal()}>
+              Active Sessions & MFA
+            </Button>
+          </div>
         </Card>
         <Card variant="card" className="border-t-3! border-t-teal!">
-          <div className="mb-2.5 flex items-center gap-2"><PhCheckCircle size={20} color="#1D6B66" /><h2 className="m-0 text-[15px] font-semibold text-ink">Multi-factor authentication</h2></div>
-          <p className="mt-0 mb-2.5 text-[13px] text-slate">Enrollment state returned for the signed-in backend account.</p>
-          <StatusPill label={currentUser?.mfaEnabled === true ? 'Enabled' : currentUser?.mfaEnabled === false ? 'Not enabled' : 'Not reported'} variant={currentUser?.mfaEnabled === true ? 'active' : 'draft'} />
+          <div className="mb-2.5 flex items-center gap-2">
+            <PhCheckCircle size={20} color="#1D6B66" />
+            <h2 className="m-0 text-[15px] font-semibold text-ink">Multi-factor authentication</h2>
+          </div>
+          <p className="mt-0 mb-2.5 text-[13px] text-slate">
+            Enrollment state returned for the signed-in backend account.
+          </p>
+          <StatusPill
+            label={
+              currentUser?.mfaEnabled === true
+                ? 'Enabled'
+                : currentUser?.mfaEnabled === false
+                  ? 'Not enabled'
+                  : 'Not reported'
+            }
+            variant={currentUser?.mfaEnabled === true ? 'active' : 'draft'}
+          />
         </Card>
       </div>
-      {/* Section 1: Role Permissions Matrix (PRD Section 6) */}
+
+      {/* Section 1: Role Permissions Matrix */}
       <div className="mb-8">
         <div className="mb-3.5 flex items-center justify-between">
           <div>
             <h2 className="m-0 text-lg font-semibold text-ink">
-              {language === 'bn' ? 'অপারেশনাল ভূমিকা ও দায়িত্ব ম্যাট্রিক্স' : 'Hub Operations Role & Responsibility Matrix (PRD Section 6.1)'}
+              {language === 'bn'
+                ? 'অপারেশনাল ভূমিকা ও দায়িত্ব ম্যাট্রিক্স'
+                : 'Hub Operations Role & Responsibility Matrix (PRD Section 6.1)'}
             </h2>
             <p className="mt-0.5 text-xs text-slate">
               {language === 'bn'
@@ -250,7 +419,7 @@ export const SettingsPermissionsView: React.FC = () => {
                 : 'The 7 core operations roles, exact responsibilities, least-privilege boundary and access controls'}
             </p>
           </div>
-          <span className="text-xs text-slate font-mono">Role choice limited to API assignments</span>
+          <span className="font-mono text-xs text-slate">Role choice limited to API assignments</span>
         </div>
 
         <Card variant="card" className="p-0! overflow-hidden">
@@ -270,10 +439,11 @@ export const SettingsPermissionsView: React.FC = () => {
                 const item = ROLES_CONFIG[roleKey];
                 const isActive = activeRole === item.id;
                 return (
-                  <tr key={item.id} className={`transition-colors ${isActive ? 'bg-mist/50' : 'hover:bg-bone/40'}`}>
-                    <td className="px-4 py-4 font-mono text-xs font-bold text-teal">
-                      {item.number}
-                    </td>
+                  <tr
+                    key={item.id}
+                    className={`transition-colors ${isActive ? 'bg-mist/50' : 'hover:bg-bone/40'}`}
+                  >
+                    <td className="px-4 py-4 font-mono text-xs font-bold text-teal">{item.number}</td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-ink">
                         {language === 'bn' ? item.titleBn : item.title}
@@ -284,10 +454,10 @@ export const SettingsPermissionsView: React.FC = () => {
                       {language === 'bn' ? item.scopeLabelBn : item.scopeLabel}
                     </td>
                     <td className="px-5 py-4 text-xs text-ink">
-                      <strong className="text-pine block mb-1">
+                      <strong className="mb-1 block text-pine">
                         {language === 'bn' ? item.descriptionBn : item.description}
                       </strong>
-                      <span className="text-[11px] text-slate leading-relaxed">
+                      <span className="text-[11px] leading-relaxed text-slate">
                         {item.capabilities.slice(0, 2).join(' • ')}
                       </span>
                     </td>
@@ -297,7 +467,7 @@ export const SettingsPermissionsView: React.FC = () => {
                           READ-ONLY AUDITOR
                         </span>
                       ) : (
-                        <span className="rounded-md bg-sage-200 px-2 py-0.5 text-[11px] font-bold text-pine uppercase">
+                        <span className="rounded-md bg-sage-200 px-2 py-0.5 text-[11px] font-bold uppercase text-pine">
                           OPERATIONAL
                         </span>
                       )}
@@ -330,7 +500,7 @@ export const SettingsPermissionsView: React.FC = () => {
         </Card>
       </div>
 
-      {/* Section 1B: Live API Role Assignments (/admin/role-assignments) */}
+      {/* Section 1B: Live API Role Assignments */}
       <div className="mb-8">
         <div className="mb-3.5 flex items-center justify-between">
           <div>
@@ -376,7 +546,7 @@ export const SettingsPermissionsView: React.FC = () => {
               {roleAssignments.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-xs text-slate">
-                    No active staff role assignments recorded on the backend. Click "+ Assign Role (API)" above to assign a role.
+                    No active staff role assignments recorded on the backend. Click &ldquo;+ Assign Role (API)&rdquo; above to assign a role.
                   </td>
                 </tr>
               ) : (
@@ -400,20 +570,29 @@ export const SettingsPermissionsView: React.FC = () => {
                       <td className="px-5 py-4 text-xs font-semibold uppercase text-slate">
                         {assignment.scopeType}
                       </td>
-                      <td className="px-5 py-4 text-xs font-mono text-slate">
-                        {assignment.hubId || assignment.regionId || assignment.sessionId || (assignment.scopeType === 'platform' ? 'Platform Wide' : 'Not returned')}
+                      <td className="px-5 py-4 font-mono text-xs text-slate">
+                        {assignment.hubId ||
+                          assignment.regionId ||
+                          assignment.sessionId ||
+                          (assignment.scopeType === 'platform' ? 'Platform Wide' : 'Not returned')}
                       </td>
                       <td className="px-5 py-4">
                         <StatusPill
                           label={assignment.status.toUpperCase()}
-                          variant={assignment.status === 'active' ? 'completed' : assignment.status === 'revoked' ? 'cancelled' : 'draft'}
+                          variant={
+                            assignment.status === 'active'
+                              ? 'completed'
+                              : assignment.status === 'revoked'
+                                ? 'cancelled'
+                                : 'draft'
+                          }
                         />
                       </td>
                       <td className="px-5 py-4">
                         {canRevoke && (
                           <button
                             type="button"
-                            onClick={() => handleRevokeRole(assignment.id)}
+                            onClick={() => void handleRevokeRole(assignment.id)}
                             className="cursor-pointer text-xs font-semibold text-bad hover:underline"
                           >
                             Revoke
@@ -429,13 +608,122 @@ export const SettingsPermissionsView: React.FC = () => {
         </Card>
       </div>
 
+      {/* Section 1C: Clinical Credentials Verification (/admin/credentials) */}
+      <div className="mb-8">
+        <div className="mb-3.5 flex items-center justify-between">
+          <div>
+            <h2 className="m-0 text-lg font-semibold text-ink">
+              Clinical Credentials Verification (/admin/credentials)
+            </h2>
+            <p className="mt-0.5 text-xs text-slate">
+              Verify, reject, suspend, or expire BMDC and nursing credentials required for clinical role assignments
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={credDecisionReason}
+              onChange={(e) => setCredDecisionReason(e.target.value)}
+              placeholder="Decision reason (for reject/suspend/expire)..."
+              className="h-9 rounded-xl border border-line px-3 text-xs"
+            />
+            <Button variant="small" onClick={() => void loadCredentials()} icon={<PhArrowsClockwise size={14} />}>
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        <Card variant="card" className="p-0! overflow-hidden">
+          {credentialsList.length === 0 ? (
+            <p className="m-0 p-6 text-xs text-slate">No clinical credentials submitted for verification.</p>
+          ) : (
+            <table className="w-full border-collapse text-left font-ui text-xs">
+              <thead>
+                <tr className="border-b border-line bg-bone uppercase text-slate">
+                  <th className="px-5 py-3">Staff Member</th>
+                  <th className="px-5 py-3">Designation & Qualification</th>
+                  <th className="px-5 py-3">Registration</th>
+                  <th className="px-5 py-3">Qualifies For</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {credentialsList.map((cred) => (
+                  <tr key={cred.id}>
+                    <td className="px-5 py-3 font-semibold text-ink">
+                      {cred.user?.name || cred.userId}
+                    </td>
+                    <td className="px-5 py-3">
+                      {cred.professionalDesignation} ({cred.qualification})
+                    </td>
+                    <td className="px-5 py-3 font-mono">
+                      {cred.registrationBody || 'Reg'}: {cred.registrationNumber || '—'}
+                    </td>
+                    <td className="px-5 py-3">{cred.qualifiesForRoles.join(', ')}</td>
+                    <td className="px-5 py-3">
+                      <StatusPill
+                        label={cred.status}
+                        variant={cred.status === 'verified' ? 'active' : 'upcoming'}
+                      />
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex gap-1.5">
+                        {cred.status !== 'verified' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDecideCredential(cred.id, 'verify')}
+                            className="cursor-pointer rounded bg-teal px-2 py-1 text-[11px] font-semibold text-white"
+                          >
+                            Verify
+                          </button>
+                        )}
+                        {cred.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDecideCredential(cred.id, 'reject')}
+                            className="cursor-pointer rounded border border-bad/40 px-2 py-1 text-[11px] font-semibold text-bad"
+                          >
+                            Reject
+                          </button>
+                        )}
+                        {cred.status === 'verified' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDecideCredential(cred.id, 'suspend')}
+                            className="cursor-pointer rounded border border-warn/40 bg-warn-bg px-2 py-1 text-[11px] font-semibold text-warn-fg"
+                          >
+                            Suspend
+                          </button>
+                        )}
+                        {cred.status !== 'expired' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDecideCredential(cred.id, 'expire')}
+                            className="cursor-pointer rounded border border-line px-2 py-1 text-[11px] font-semibold text-slate"
+                          >
+                            Expire
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+      </div>
+
       <div className="mb-8 grid grid-cols-2 gap-6">
         <Card variant="card">
           <div className="mb-3 flex items-center gap-2">
             <PhSlidersHorizontal size={20} color="#1D6B66" />
             <h3 className="m-0 text-base font-semibold text-ink">Operational thresholds</h3>
           </div>
-          <p className="m-0 text-sm text-slate">This backend does not expose an API to edit global wait-time or overbooking settings. Queue and session limits shown elsewhere come from API records.</p>
+          <p className="m-0 text-sm text-slate">
+            Queue priority policies and clinical alert thresholds are governed in the Service &amp; Protocol Catalogue.
+          </p>
         </Card>
 
         <Card variant="card" className="border-t-3! border-t-bad!">
@@ -443,17 +731,31 @@ export const SettingsPermissionsView: React.FC = () => {
             <PhLockKey size={20} color="#C53030" />
             <h3 className="m-0 text-base font-semibold text-ink">Break-glass sessions</h3>
           </div>
-          <p className="mb-4 mt-0 text-xs leading-relaxed text-slate">Break-glass access is patient-specific. Requests require a clinical staff role, a selected patient and a reason of at least 20 characters.</p>
+          <p className="mb-4 mt-0 text-xs leading-relaxed text-slate">
+            Break-glass access is patient-specific. Requests require a clinical staff role, a selected patient and a reason of at least 20 characters.
+          </p>
 
           {canReviewBreakGlass && (
             <div className="mb-4 space-y-2">
               {activeBreakGlass.map((entry) => (
                 <div key={entry.id} className="rounded-xl bg-bad-bg p-3 text-xs text-bad-fg">
-                  <div className="font-bold">Active API record · patient {entry.patient?.healoraCode || entry.patientId}</div>
+                  <div className="font-bold">
+                    Active API record · patient {entry.patient?.healoraCode || entry.patientId}
+                  </div>
                   <div className="mt-1">Requested by {entry.user?.name || entry.userId}</div>
                   <div className="mt-1">{entry.reason}</div>
-                  <div className="mt-1">Started {entry.startsAt} · Expires {entry.expiresAt}</div>
-                  {(availableRoles.includes('platform_super_admin') || entry.userId === currentUser?.id) && <button type="button" onClick={() => endBreakGlass(entry.id)} className="mt-2 rounded-lg bg-bad px-3 py-1.5 font-bold text-white">End session</button>}
+                  <div className="mt-1">
+                    Started {entry.startsAt} · Expires {entry.expiresAt}
+                  </div>
+                  {(availableRoles.includes('platform_super_admin') || entry.userId === currentUser?.id) && (
+                    <button
+                      type="button"
+                      onClick={() => void endBreakGlass(entry.id)}
+                      className="mt-2 rounded-lg bg-bad px-3 py-1.5 font-bold text-white"
+                    >
+                      End session
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -461,78 +763,182 @@ export const SettingsPermissionsView: React.FC = () => {
 
           {!canReviewBreakGlass && canRequestBreakGlass && (
             <div className="mb-4 space-y-2">
-              <h4 className="m-0 text-xs font-bold uppercase tracking-wide text-slate">My active break-glass access</h4>
-              {myBreakGlass.filter(isBreakGlassActive).length === 0 ? <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">No active break-glass access was returned for your account.</p> : myBreakGlass.filter(isBreakGlassActive).map((entry) => (
-                <div key={entry.id} className="rounded-xl bg-bad-bg p-3 text-xs text-bad-fg">
-                  <div className="font-bold">Patient {entry.patient?.healoraCode || entry.patientId}</div>
-                  <div className="mt-1">{entry.reason}</div>
-                  <div className="mt-1">Starts {entry.startsAt} Â· Expires {entry.expiresAt}</div>
-                  <button type="button" onClick={() => endBreakGlass(entry.id)} className="mt-2 rounded-lg bg-bad px-3 py-1.5 font-bold text-white">End my access</button>
-                </div>
-              ))}
+              <h4 className="m-0 text-xs font-bold uppercase tracking-wide text-slate">
+                My active break-glass access
+              </h4>
+              {myBreakGlass.filter(isBreakGlassActive).length === 0 ? (
+                <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">
+                  No active break-glass access was returned for your account.
+                </p>
+              ) : (
+                myBreakGlass.filter(isBreakGlassActive).map((entry) => (
+                  <div key={entry.id} className="rounded-xl bg-bad-bg p-3 text-xs text-bad-fg">
+                    <div className="font-bold">Patient {entry.patient?.healoraCode || entry.patientId}</div>
+                    <div className="mt-1">{entry.reason}</div>
+                    <div className="mt-1">
+                      Starts {entry.startsAt} · Expires {entry.expiresAt}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void endBreakGlass(entry.id)}
+                      className="mt-2 rounded-lg bg-bad px-3 py-1.5 font-bold text-white"
+                    >
+                      End my access
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
           {canReviewBreakGlass && (
             <div className="mb-4 space-y-2">
-              <h4 className="m-0 text-xs font-bold uppercase tracking-wide text-slate">Break-glass reviews pending</h4>
-              {pendingBreakGlassReview.length === 0 ? <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">No pending review records were returned.</p> : pendingBreakGlassReview.map((entry) => {
-                const isOwnRequest = entry.userId === currentUser?.id;
-                const isReviewing = reviewingBreakGlassId === entry.id;
-                return <div key={entry.id} className="rounded-xl border border-line bg-paper p-3 text-xs text-slate">
-                  <div className="font-bold text-ink">Patient {entry.patient?.healoraCode || entry.patientId} Â· {entry.user?.name || entry.userId}</div>
-                  <div className="mt-1">{entry.reason}</div>
-                  <div className="mt-1">Starts {entry.startsAt} Â· Expires {entry.expiresAt}</div>
-                  {isOwnRequest ? <p className="mb-0 mt-2 text-warn-fg">You cannot review your own access.</p> : <>
-                    <textarea aria-label="Review notes" value={breakGlassReviewNotes[entry.id] ?? ''} onChange={(event) => setBreakGlassReviewNotes((items) => ({ ...items, [entry.id]: event.target.value }))} maxLength={2000} rows={2} placeholder="Review notes (required if not justified)" className="mt-2 w-full rounded-lg border border-line p-2" />
-                    <div className="mt-2 flex gap-2">
-                      <Button variant="secondary" disabled={isReviewing} onClick={() => reviewBreakGlass(entry, 'justified')}>{isReviewing ? 'Saving…' : 'Justified'}</Button>
-                      <Button variant="secondary" disabled={isReviewing || !breakGlassReviewNotes[entry.id]?.trim()} onClick={() => reviewBreakGlass(entry, 'not_justified')}>Not justified</Button>
+              <h4 className="m-0 text-xs font-bold uppercase tracking-wide text-slate">
+                Break-glass reviews pending
+              </h4>
+              {pendingBreakGlassReview.length === 0 ? (
+                <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">
+                  No pending review records were returned.
+                </p>
+              ) : (
+                pendingBreakGlassReview.map((entry) => {
+                  const isOwnRequest = entry.userId === currentUser?.id;
+                  const isReviewing = reviewingBreakGlassId === entry.id;
+                  return (
+                    <div key={entry.id} className="rounded-xl border border-line bg-paper p-3 text-xs text-slate">
+                      <div className="font-bold text-ink">
+                        Patient {entry.patient?.healoraCode || entry.patientId} · {entry.user?.name || entry.userId}
+                      </div>
+                      <div className="mt-1">{entry.reason}</div>
+                      <div className="mt-1">
+                        Starts {entry.startsAt} · Expires {entry.expiresAt}
+                      </div>
+                      {isOwnRequest ? (
+                        <p className="mb-0 mt-2 text-warn-fg">You cannot review your own access.</p>
+                      ) : (
+                        <>
+                          <textarea
+                            aria-label="Review notes"
+                            value={breakGlassReviewNotes[entry.id] ?? ''}
+                            onChange={(event) =>
+                              setBreakGlassReviewNotes((items) => ({
+                                ...items,
+                                [entry.id]: event.target.value,
+                              }))
+                            }
+                            maxLength={2000}
+                            rows={2}
+                            placeholder="Review notes (required if not justified)"
+                            className="mt-2 w-full rounded-lg border border-line p-2"
+                          />
+                          <div className="mt-2 flex gap-2">
+                            <Button
+                              variant="secondary"
+                              disabled={isReviewing}
+                              onClick={() => void reviewBreakGlass(entry, 'justified')}
+                            >
+                              {isReviewing ? 'Saving…' : 'Justified'}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              disabled={isReviewing || !breakGlassReviewNotes[entry.id]?.trim()}
+                              onClick={() => void reviewBreakGlass(entry, 'not_justified')}
+                            >
+                              Not justified
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  </>}
-                </div>;
-              })}
+                  );
+                })
+              )}
             </div>
           )}
 
           {canRequestBreakGlass ? (
             <form onSubmit={handleBreakGlass} className="space-y-3">
               <div className="flex gap-2">
-                <input type="tel" value={breakGlassPatientQuery} onChange={(event) => setBreakGlassPatientQuery(event.target.value)} placeholder="Patient phone" className="h-10 flex-1 rounded-xl border border-line px-3 text-sm" />
-                <Button type="button" variant="secondary" onClick={handleBreakGlassLookup}>Find patient</Button>
+                <input
+                  type="tel"
+                  value={breakGlassPatientQuery}
+                  onChange={(event) => setBreakGlassPatientQuery(event.target.value)}
+                  placeholder="Patient phone"
+                  className="h-10 flex-1 rounded-xl border border-line px-3 text-sm"
+                />
+                <Button type="button" variant="secondary" onClick={handleBreakGlassLookup}>
+                  Find patient
+                </Button>
               </div>
               {breakGlassPatients.length > 0 && (
-                <label className="block text-xs font-semibold text-slate">Patient record
-                  <select required value={breakGlassPatientId} onChange={(event) => setBreakGlassPatientId(event.target.value)} className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal">
+                <label className="block text-xs font-semibold text-slate">
+                  Patient record
+                  <select
+                    required
+                    value={breakGlassPatientId}
+                    onChange={(event) => setBreakGlassPatientId(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+                  >
                     <option value="">Select patient</option>
-                    {breakGlassPatients.map((patient) => <option key={patient.id} value={patient.id}>{patient.fullName} · {patient.healoraCode}</option>)}
+                    {breakGlassPatients.map((patient) => (
+                      <option key={patient.id} value={patient.id}>
+                        {patient.fullName} · {patient.healoraCode}
+                      </option>
+                    ))}
                   </select>
                 </label>
               )}
-              <label className="block text-xs font-semibold text-slate">Reason (minimum 20 characters)
-                <textarea required minLength={20} maxLength={2000} rows={3} value={breakGlassReason} onChange={(event) => setBreakGlassReason(event.target.value)} className="mt-1 w-full rounded-xl border border-line p-2.5 text-sm font-normal" />
+              <label className="block text-xs font-semibold text-slate">
+                Reason (minimum 20 characters)
+                <textarea
+                  required
+                  minLength={20}
+                  maxLength={2000}
+                  rows={3}
+                  value={breakGlassReason}
+                  onChange={(event) => setBreakGlassReason(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-line p-2.5 text-sm font-normal"
+                />
               </label>
-              <label className="block text-xs font-semibold text-slate">Duration in minutes
-                <input type="number" required min={5} max={240} value={breakGlassDuration} onChange={(event) => setBreakGlassDuration(Number(event.target.value))} className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal" />
+              <label className="block text-xs font-semibold text-slate">
+                Duration in minutes
+                <input
+                  type="number"
+                  required
+                  min={5}
+                  max={240}
+                  value={breakGlassDuration}
+                  onChange={(event) => setBreakGlassDuration(Number(event.target.value))}
+                  className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+                />
               </label>
-              <Button type="submit" variant="primary" disabled={!breakGlassPatientId}>Request access</Button>
+              <Button type="submit" variant="primary" disabled={!breakGlassPatientId}>
+                Request access
+              </Button>
             </form>
           ) : (
-            <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">No break-glass request role is assigned to this account. Platform administrators can review and end active sessions.</p>
+            <p className="m-0 rounded-xl bg-bone p-3 text-xs text-slate">
+              No break-glass request role is assigned to this account. Platform administrators can review and end active sessions.
+            </p>
           )}
         </Card>
       </div>
-      {/* Section 4: Accessibility & Language Mode (PRD Section 18) */}
+
+      {/* Section 4: Accessibility & Language Mode */}
       <div className="mb-8">
         <Card variant="card">
           <h3 className="m-0 mb-3 text-base font-semibold text-ink">
-            {language === 'bn' ? 'ভাষা ও সহজ মোড (অ্যাক্সেসিবিলিটি)' : 'Localisation & Accessibility Configuration'}
+            {language === 'bn'
+              ? 'ভাষা ও সহজ মোড (অ্যাক্সেসিবিলিটি)'
+              : 'Localisation & Accessibility Configuration'}
           </h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex items-center justify-between rounded-xl bg-bone p-3.5">
               <div>
                 <div className="text-xs font-semibold text-ink">Interface Language / ভাষা</div>
-                <div className="text-[11px] text-slate">Toggle platform UI strings between English and বাংলা</div>
+                <div className="text-[11px] text-slate">
+                  Toggle platform UI strings between English and বাংলা
+                </div>
               </div>
               <button
                 type="button"
@@ -546,7 +952,9 @@ export const SettingsPermissionsView: React.FC = () => {
             <div className="flex items-center justify-between rounded-xl bg-bone p-3.5">
               <div>
                 <div className="text-xs font-semibold text-ink">Simple Mode (Low Strain UI)</div>
-                <div className="text-[11px] text-slate">Enlarged touch targets for elderly or busy desk receptionists</div>
+                <div className="text-[11px] text-slate">
+                  Enlarged touch targets for elderly or busy desk receptionists
+                </div>
               </div>
               <button
                 type="button"
@@ -562,6 +970,66 @@ export const SettingsPermissionsView: React.FC = () => {
         </Card>
       </div>
 
+      {/* Modal: Active Auth Sessions & MFA Controls */}
+      <ModalSheet
+        isOpen={isAuthSessionsOpen}
+        onClose={() => setIsAuthSessionsOpen(false)}
+        title="Active Device Sessions & MFA Control"
+      >
+        <div className="space-y-4">
+          <div className="text-xs font-semibold text-ink">Active Sign-In Sessions (/auth/sessions)</div>
+          {authSessions.length === 0 ? (
+            <div className="text-xs text-slate">No active session records returned.</div>
+          ) : (
+            <div className="space-y-2">
+              {authSessions.map((sess) => (
+                <div
+                  key={sess.id}
+                  className="flex items-center justify-between rounded-xl border border-line bg-paper p-3 text-xs"
+                >
+                  <div>
+                    <div className="font-semibold text-ink">
+                      {sess.userAgent || 'Browser Session'} {sess.current ? '(Current)' : ''}
+                    </div>
+                    <div className="text-[11px] text-slate">
+                      Created: {new Date(sess.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                  {!sess.current && (
+                    <button
+                      type="button"
+                      onClick={() => void handleRevokeAuthSession(sess.id)}
+                      className="cursor-pointer rounded border border-bad/40 px-2.5 py-1 text-[11px] font-semibold text-bad"
+                    >
+                      Terminate
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {currentUser?.mfaEnabled && (
+            <form onSubmit={handleDisableOwnMfa} className="space-y-2 border-t border-line pt-3">
+              <div className="text-xs font-semibold text-bad">Disable Multi-Factor Authentication</div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  value={disableMfaCode}
+                  onChange={(e) => setDisableMfaCode(e.target.value)}
+                  placeholder="Enter 6-digit authenticator code"
+                  className="h-9 flex-1 rounded-lg border border-line px-3 text-xs"
+                />
+                <Button variant="small" type="submit">
+                  Disable MFA
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+      </ModalSheet>
+
       {/* Modal: Assign Staff Role via API */}
       <ModalSheet
         isOpen={isAssignModalOpen}
@@ -575,14 +1043,16 @@ export const SettingsPermissionsView: React.FC = () => {
 
           {assignmentOptionsError && (
             <p role="alert" className="rounded-lg border border-bad/20 bg-bad-bg px-3 py-2 text-xs text-bad-fg">
-              Could not load backend users or regions: {assignmentOptionsError}. Confirm you signed in with a current MFA code, then reopen this form.
+              Could not load backend users or regions: {assignmentOptionsError}.
             </p>
           )}
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate">Select Backend Staff Account</label>
             {isLoadingAssignmentOptions ? (
-              <p className="rounded-lg border border-line bg-bone px-3 py-3 text-sm text-slate">Loading staff accounts…</p>
+              <p className="rounded-lg border border-line bg-bone px-3 py-3 text-sm text-slate">
+                Loading staff accounts…
+              </p>
             ) : backendUsers.length > 0 ? (
               <select
                 value={assignUserId}
@@ -599,7 +1069,7 @@ export const SettingsPermissionsView: React.FC = () => {
               </select>
             ) : (
               <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">
-                No backend staff accounts were returned. Create or invite the staff account first, then reopen this form.
+                No backend staff accounts were returned.
               </p>
             )}
           </div>
@@ -611,7 +1081,13 @@ export const SettingsPermissionsView: React.FC = () => {
               onChange={(e) => {
                 const role = e.target.value as UserRole;
                 setAssignRole(role);
-                setAssignScopeType(role === 'regional_ops_manager' ? 'region' : role === 'platform_super_admin' ? 'platform' : 'hub');
+                setAssignScopeType(
+                  role === 'regional_ops_manager'
+                    ? 'region'
+                    : role === 'platform_super_admin'
+                      ? 'platform'
+                      : 'hub'
+                );
                 setAssignScopeId('');
               }}
               className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none"
@@ -657,11 +1133,11 @@ export const SettingsPermissionsView: React.FC = () => {
                 >
                   <option value="">-- Choose Hub --</option>
                   {hubs.map((h) => (
-                    <option key={h.id} value={h.id}>{h.name}</option>
+                    <option key={h.id} value={h.id}>
+                      {h.name}
+                    </option>
                   ))}
                 </select>
-              ) : assignScopeType === 'hub' ? (
-                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">No hubs were returned by the backend for this account.</p>
               ) : assignScopeType === 'region' && backendRegions.length > 0 ? (
                 <select
                   value={assignScopeId}
@@ -671,22 +1147,31 @@ export const SettingsPermissionsView: React.FC = () => {
                 >
                   <option value="">-- Choose Region --</option>
                   {backendRegions.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
                   ))}
                 </select>
-              ) : assignScopeType === 'region' ? (
-                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">No active operational regions available from the backend.</p>
               ) : assignScopeType === 'session' && sessions.length > 0 ? (
-                <select value={assignScopeId} onChange={(e) => setAssignScopeId(e.target.value)} required className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none">
+                <select
+                  value={assignScopeId}
+                  onChange={(e) => setAssignScopeId(e.target.value)}
+                  required
+                  className="h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink outline-none"
+                >
                   <option value="">-- Choose Session --</option>
-                  {sessions.map((session) => <option key={session.id} value={session.id}>{session.title} · {session.date}</option>)}
+                  {sessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {session.title} · {session.date}
+                    </option>
+                  ))}
                 </select>
-              ) : assignScopeType === 'session' ? (
-                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">No sessions were returned by the backend for this account.</p>
-              ) : assignScopeType === 'platform' ? (
-                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">This role applies at platform scope and does not use a target entity ID.</p>
               ) : (
-                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">Choose a valid scope boundary above.</p>
+                <p className="rounded-lg border border-line bg-bone px-3 py-3 text-xs text-slate">
+                  {assignScopeType === 'platform'
+                    ? 'Platform scope (no target entity required).'
+                    : 'No matching scope entities available.'}
+                </p>
               )}
             </div>
           </div>
@@ -695,7 +1180,16 @@ export const SettingsPermissionsView: React.FC = () => {
             <Button variant="secondary" onClick={() => setIsAssignModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" disabled={isSubmittingRole || isLoadingAssignmentOptions || !backendUsers.length || (['region', 'hub', 'session'].includes(assignScopeType) && !assignScopeId)}>
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={
+                isSubmittingRole ||
+                isLoadingAssignmentOptions ||
+                !backendUsers.length ||
+                (['region', 'hub', 'session'].includes(assignScopeType) && !assignScopeId)
+              }
+            >
               {isSubmittingRole ? 'Assigning via API...' : 'Commit Assignment (API)'}
             </Button>
           </div>

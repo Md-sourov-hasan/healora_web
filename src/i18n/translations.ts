@@ -19,6 +19,7 @@ export interface TranslationDict {
   navSettings: string;
   navAudit: string;
   navAuditLogs: string;
+  navCatalog: string;
   todaySession: string;
   activeHubs: string;
   appointmentsToday: string;
@@ -96,6 +97,7 @@ export const translations: Record<'en' | 'bn', TranslationDict> = {
     navSettings: 'Settings & Permissions',
     navAudit: 'Audit Logs',
     navAuditLogs: 'Audit Logs',
+    navCatalog: 'Service Catalogue & Protocols',
     todaySession: "Today's Hub Operations",
     activeHubs: 'Active Hubs',
     appointmentsToday: 'Booked Today',
@@ -171,6 +173,7 @@ export const translations: Record<'en' | 'bn', TranslationDict> = {
     navSettings: 'সেটিংস ও অনুমতি',
     navAudit: 'অডিট লগ',
     navAuditLogs: 'অডিট লগ',
+    navCatalog: 'সেবা ক্যাটালগ ও প্রটোকল',
     todaySession: 'আজকের হাব কার্যক্রম',
     activeHubs: 'সক্রিয় হাব',
     appointmentsToday: 'আজকের বুকিং',

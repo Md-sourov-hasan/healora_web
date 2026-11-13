@@ -39,11 +39,28 @@ export type PatientLookupCriteria =
 
 export interface DuplicateCandidate {
   id: string;
-  confidenceScore: number;
-  reason: string;
-  primaryPatient: ApiPatient;
-  duplicatePatient: ApiPatient;
-  detectedAt: string;
+  status?: 'open' | 'confirmed_duplicate' | 'not_duplicate';
+  confidenceScore?: number;
+  reason?: string;
+  matchReason?: string;
+  primaryPatient?: ApiPatient | null;
+  duplicatePatient?: ApiPatient | null;
+  patientA?: ApiPatient | null;
+  patientB?: ApiPatient | null;
+  detectedAt?: string;
+  createdAt?: string;
+}
+
+export interface ApiPatientRepresentative {
+  id: string;
+  fullName: string;
+  maskedPhone?: string | null;
+  relationship: 'parent' | 'legal_guardian' | 'spouse' | 'child' | 'sibling' | 'other_relative' | 'authorised_carer';
+  legalBasis: string;
+  validFrom?: string;
+  validTo?: string | null;
+  verified: boolean;
+  revoked: boolean;
 }
 
 export const patientsService = {
@@ -113,16 +130,76 @@ export const patientsService = {
    * Get family caregivers / legal representatives
    */
   async getRepresentatives(
-    patientId: string
-  ): Promise<{ items: Array<{ id: string; fullName: string; maskedPhone?: string | null; relationship: string; legalBasis: string; verified: boolean; revoked: boolean }> }> {
-    return apiRequest(`/patients/${patientId}/representatives`);
+    patientId: string,
+    hubId: string
+  ): Promise<{ items: ApiPatientRepresentative[] }> {
+    return apiRequest(`/patients/${patientId}/representatives`, {
+      params: { hubId },
+    });
+  },
+
+  /**
+   * Add a family caregiver / legal representative
+   */
+  async addRepresentative(
+    patientId: string,
+    data: {
+      hubId: string;
+      fullName: string;
+      phone?: string;
+      relationship: ApiPatientRepresentative['relationship'];
+      legalBasis: string;
+      identityEvidence?: string;
+      validTo?: string;
+    }
+  ): Promise<unknown> {
+    return apiRequest(`/patients/${patientId}/representatives`, {
+      method: 'POST',
+      json: data,
+    });
+  },
+
+  /**
+   * Verify a representative's identity/authority
+   */
+  async verifyRepresentative(patientId: string, repId: string, hubId: string): Promise<unknown> {
+    return apiRequest(`/patients/${patientId}/representatives/${repId}/verify`, {
+      method: 'POST',
+      json: { hubId },
+    });
+  },
+
+  /**
+   * Revoke a representative's authority
+   */
+  async revokeRepresentative(patientId: string, repId: string, hubId: string, reason: string): Promise<unknown> {
+    return apiRequest(`/patients/${patientId}/representatives/${repId}/revoke`, {
+      method: 'POST',
+      json: { hubId, reason },
+    });
   },
 
   /**
    * List potential duplicate patient profiles for deduplication
    */
-  async getDuplicates(): Promise<{ items: DuplicateCandidate[] }> {
-    return apiRequest<{ items: DuplicateCandidate[] }>('/patient-duplicates');
+  async getDuplicates(status: 'open' | 'confirmed_duplicate' | 'not_duplicate' = 'open'): Promise<{ items: DuplicateCandidate[] }> {
+    return apiRequest<{ items: DuplicateCandidate[] }>('/patient-duplicates', {
+      params: { status },
+    });
+  },
+
+  /**
+   * Resolve a duplicate candidate as confirmed_duplicate or not_duplicate
+   */
+  async resolveDuplicate(
+    id: string,
+    resolution: 'not_duplicate' | 'confirmed_duplicate',
+    note: string
+  ): Promise<unknown> {
+    return apiRequest(`/patient-duplicates/${id}/resolve`, {
+      method: 'POST',
+      json: { resolution, note },
+    });
   },
 
   /**
@@ -131,11 +208,12 @@ export const patientsService = {
   async mergeDuplicates(
     survivorPatientId: string,
     mergedPatientId: string,
-    reason: string
-  ): Promise<{ mergedPatientId: string }> {
+    reason: string,
+    duplicateCandidateId?: string
+  ): Promise<{ mergedPatientId?: string }> {
     return apiRequest('/patient-duplicates/merge', {
       method: 'POST',
-      json: { survivorPatientId, mergedPatientId, reason },
+      json: { survivorPatientId, mergedPatientId, reason, duplicateCandidateId },
     });
   },
 };

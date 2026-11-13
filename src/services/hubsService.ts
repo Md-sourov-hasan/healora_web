@@ -67,6 +67,34 @@ export interface OperatingHoursDay {
   closesAt: string;
 }
 
+export interface ApiHubServiceOffering {
+  id: string;
+  hubId: string;
+  serviceTypeId: string;
+  status: 'proposed' | 'approved' | 'suspended' | 'retired';
+  approvedById?: string | null;
+  approvedAt?: string | null;
+  serviceType?: {
+    id: string;
+    code: string;
+    name: string;
+    nameBn?: string | null;
+    status?: string;
+    requiresDoctorReview?: boolean;
+  } | null;
+}
+
+export interface ApiAvailabilityBlock {
+  id: string;
+  hubId?: string;
+  blockType?: 'closure' | 'pause' | 'capacity_block';
+  startsAt: string;
+  endsAt: string | null;
+  remainingCapacityPct?: number | null;
+  reason: string;
+  liftedAt?: string | null;
+}
+
 export const hubsService = {
   /**
    * List hubs visible to current staff
@@ -126,8 +154,18 @@ export const hubsService = {
   /**
    * Set hub manager
    */
-  async setManager(id: string, userId: string | null): Promise<{ success: boolean }> {
+  async setManager(id: string, userId: string | null): Promise<ApiHub> {
     return apiRequest(`/hubs/${id}/manager`, {
+      method: 'PUT',
+      json: { userId },
+    });
+  },
+
+  /**
+   * Set regional owner
+   */
+  async setRegionalOwner(id: string, userId: string | null): Promise<ApiHub> {
+    return apiRequest(`/hubs/${id}/regional-owner`, {
       method: 'PUT',
       json: { userId },
     });
@@ -177,14 +215,14 @@ export const hubsService = {
   /**
    * List availability blocks / emergency closures
    */
-  async getAvailabilityBlocks(id: string): Promise<{ items: Array<{ id: string; startsAt: string; endsAt: string | null; reason: string }> }> {
-    return apiRequest(`/hubs/${id}/availability-blocks`);
+  async getAvailabilityBlocks(id: string, activeOnly = false): Promise<{ items: ApiAvailabilityBlock[] }> {
+    return apiRequest(`/hubs/${id}/availability-blocks`, { params: { activeOnly } });
   },
 
   /**
    * Declare availability block / closure
    */
-  async createAvailabilityBlock(id: string, data: { blockType: 'closure' | 'pause' | 'capacity_block'; startsAt: string; endsAt?: string | null; remainingCapacityPct?: number; reason: string }): Promise<{ id: string }> {
+  async createAvailabilityBlock(id: string, data: { blockType: 'closure' | 'pause' | 'capacity_block'; startsAt: string; endsAt?: string | null; remainingCapacityPct?: number; reason: string }): Promise<ApiAvailabilityBlock> {
     return apiRequest(`/hubs/${id}/availability-blocks`, {
       method: 'POST',
       json: data,
@@ -194,8 +232,43 @@ export const hubsService = {
   /**
    * Lift an availability block
    */
-  async liftAvailabilityBlock(id: string, blockId: string): Promise<void> {
-    return apiRequest(`/hubs/${id}/availability-blocks/${blockId}/lift`, { method: 'POST' });
+  async liftAvailabilityBlock(id: string, blockId: string, reason?: string): Promise<void> {
+    return apiRequest(`/hubs/${id}/availability-blocks/${blockId}/lift`, {
+      method: 'POST',
+      json: reason ? { reason } : {},
+    });
+  },
+
+  /**
+   * List service offerings on this hub
+   */
+  async getServiceOfferings(id: string): Promise<{ items: ApiHubServiceOffering[] }> {
+    return apiRequest(`/hubs/${id}/service-offerings`);
+  },
+
+  /**
+   * Propose a service offering on this hub
+   */
+  async proposeServiceOffering(id: string, serviceTypeId: string): Promise<ApiHubServiceOffering> {
+    return apiRequest(`/hubs/${id}/service-offerings`, {
+      method: 'POST',
+      json: { serviceTypeId },
+    });
+  },
+
+  /**
+   * Approve, suspend, or retire a service offering on this hub
+   */
+  async decideServiceOffering(
+    id: string,
+    offeringId: string,
+    action: 'approve' | 'suspend' | 'retire',
+    reason?: string
+  ): Promise<ApiHubServiceOffering> {
+    return apiRequest(`/hubs/${id}/service-offerings/${offeringId}/${action}`, {
+      method: 'POST',
+      json: reason ? { reason } : {},
+    });
   },
 
   /**

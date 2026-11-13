@@ -46,6 +46,7 @@ export const ROLES_CONFIG: Record<UserRole, RoleConfig> = {
       '/notifications',
       '/settings',
       '/audit-logs',
+      '/catalog',
     ],
     capabilities: [
       'Manage all physical hubs & regional demarcations',
@@ -76,6 +77,7 @@ export const ROLES_CONFIG: Record<UserRole, RoleConfig> = {
       '/exceptions',
       '/reports',
       '/notifications',
+      '/catalog',
     ],
     capabilities: [
       'Manage multi-hub sessions and outreach camps in region',
@@ -110,6 +112,7 @@ export const ROLES_CONFIG: Record<UserRole, RoleConfig> = {
       '/exceptions',
       '/reports',
       '/notifications',
+      '/catalog',
     ],
     capabilities: [
       'Configure hub profile, operating hours & service desks',

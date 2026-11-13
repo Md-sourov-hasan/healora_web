@@ -14,7 +14,8 @@ export type AppRoute =
   | '/reports'
   | '/notifications'
   | '/settings'
-  | '/audit-logs';
+  | '/audit-logs'
+  | '/catalog';
 
 export type Language = 'en' | 'bn';
 

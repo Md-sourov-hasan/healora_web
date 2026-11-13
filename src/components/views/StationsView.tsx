@@ -3,6 +3,7 @@ import {
   PhPlus,
   PhArrowsClockwise,
   PhDesktop,
+  PhGear,
 } from '../icons/PhosphorIcons';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -10,12 +11,14 @@ import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
 import { useApp } from '../../context/AppContext';
 import type { HubStation, StationStatus } from '../../types';
+import { stationsEquipmentService } from '../../services/stationsEquipmentService';
 
 export const StationsView: React.FC = () => {
   const {
     t,
     language,
     stations,
+    serviceTypes,
     selectedHubId,
     hubs,
     queue,
@@ -23,12 +26,21 @@ export const StationsView: React.FC = () => {
     addStation,
     callNextPatient,
     refreshBackendData,
+    showToast,
   } = useApp();
 
   const [isAddStationOpen, setIsAddStationOpen] = useState(false);
   const [newStationName, setNewStationName] = useState('');
   const [newStationCode, setNewStationCode] = useState('');
   const [newStationType, setNewStationType] = useState<HubStation['stationType']>('vitals');
+
+  // Edit & Service Types modal
+  const [managingStation, setManagingStation] = useState<HubStation | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editNameBn, setEditNameBn] = useState('');
+  const [editType, setEditType] = useState<HubStation['stationType']>('vitals');
+  const [selectedServiceTypeIds, setSelectedServiceTypeIds] = useState<string[]>([]);
+  const [stationBusy, setStationBusy] = useState(false);
 
   const currentHub = hubs.find((h) => h.id === selectedHubId) || hubs[0];
   const hubStations = stations.filter((s) => s.hubId === selectedHubId);
@@ -42,7 +54,72 @@ export const StationsView: React.FC = () => {
       name: newStationName,
       stationType: newStationType,
     });
-    if (ok) { setNewStationName(''); setNewStationCode(''); setIsAddStationOpen(false); }
+    if (ok) {
+      setNewStationName('');
+      setNewStationCode('');
+      setIsAddStationOpen(false);
+    }
+  };
+
+  const openManageStation = async (station: HubStation) => {
+    setManagingStation(station);
+    setEditName(station.name);
+    setEditNameBn(station.nameBn || '');
+    setEditType(station.stationType);
+    setSelectedServiceTypeIds([]);
+    setStationBusy(true);
+    try {
+      const linked = await stationsEquipmentService.getStationServiceTypes(station.id);
+      if (Array.isArray(linked)) {
+        setSelectedServiceTypeIds(linked.map((s) => s.id));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setStationBusy(false);
+    }
+  };
+
+  const handleSaveStation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!managingStation) return;
+    setStationBusy(true);
+    try {
+      const apiType = editType === 'counseling' ? 'counselling' : editType;
+      await stationsEquipmentService.updateStation(managingStation.id, {
+        name: editName.trim(),
+        nameBn: editNameBn.trim() || undefined,
+        stationType: apiType,
+      });
+      await stationsEquipmentService.setStationServiceTypes(managingStation.id, selectedServiceTypeIds);
+      setManagingStation(null);
+      await refreshBackendData();
+      showToast('Station configuration and service types updated.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to update station.');
+    } finally {
+      setStationBusy(false);
+    }
+  };
+
+  const handleDeleteStation = async (stationId: string) => {
+    setStationBusy(true);
+    try {
+      await stationsEquipmentService.deleteStation(stationId);
+      setManagingStation(null);
+      await refreshBackendData();
+      showToast('Station deleted.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete station.');
+    } finally {
+      setStationBusy(false);
+    }
+  };
+
+  const toggleServiceTypeSelection = (stId: string) => {
+    setSelectedServiceTypeIds((prev) =>
+      prev.includes(stId) ? prev.filter((id) => id !== stId) : [...prev, stId]
+    );
   };
 
   const getStationTypeBadge = (type: HubStation['stationType']) => {
@@ -71,13 +148,12 @@ export const StationsView: React.FC = () => {
             </span>
             <span className="size-2 animate-pulse-live rounded-full bg-ok" />
           </div>
-          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
-            {t.navStations}
-          </h1>
+          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">{t.navStations}</h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub?.name || 'Selected hub'} • {language === 'bn'
+            {currentHub?.name || 'Selected hub'} •{' '}
+            {language === 'bn'
               ? 'অভ্যর্থনা, ভাইটালস পরিমাপ কক্ষ, ডাক্তার রিভিউ ও কাউন্সেলিং স্টেশন পরিচালনা'
-              : 'Dedicated physical care desks, live occupancy, staff allocation & queue progress'}
+              : 'Dedicated physical care desks, live occupancy, service type bindings & queue progress'}
           </p>
         </div>
 
@@ -144,126 +220,138 @@ export const StationsView: React.FC = () => {
             <p className="mt-1 text-sm text-slate">
               {language === 'bn'
                 ? 'উপরে "নতুন স্টেশন তৈরি" বাটনে ক্লিক করে অভ্যর্থনা বা ভাইটালস পরিমাপ কক্ষ যুক্ত করুন।'
-                : 'Zero dummy data. Click "Add Station" above to configure your physical service desks.'}
+                : 'Click "Add Station" above to configure your physical service desks.'}
             </p>
           </div>
         ) : (
           hubStations.map((station) => {
-          const waitingAtStation = hubQueue.filter(
-            (q) => q.stationId === station.id && q.currentStatus === 'waiting'
-          ).length;
+            const waitingAtStation = hubQueue.filter(
+              (q) => q.stationId === station.id && q.currentStatus === 'waiting'
+            ).length;
 
-          return (
-            <Card
-              key={station.id}
-              variant="card"
-              className={`border-t-3! ${
-                station.status === 'busy'
-                  ? 'border-t-teal!'
-                  : station.status === 'available'
-                  ? 'border-t-ok!'
-                  : 'border-t-bad!'
-              }`}
-            >
-              <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
-                    <span
-                      className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase ${getStationTypeBadge(
-                        station.stationType
-                      )}`}
+            return (
+              <Card
+                key={station.id}
+                variant="card"
+                className={`border-t-3! ${
+                  station.status === 'busy'
+                    ? 'border-t-teal!'
+                    : station.status === 'available'
+                      ? 'border-t-ok!'
+                      : 'border-t-bad!'
+                }`}
+              >
+                <div className="mb-3 flex items-start justify-between">
+                  <div>
+                    <div className="mb-1 flex items-center gap-2">
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase ${getStationTypeBadge(
+                          station.stationType
+                        )}`}
+                      >
+                        {station.stationType.replace('_', ' ')}
+                      </span>
+                      <StatusPill
+                        label={station.status.toUpperCase()}
+                        variant={
+                          station.status === 'available'
+                            ? 'available'
+                            : station.status === 'busy'
+                              ? 'busy'
+                              : 'cancelled'
+                        }
+                      />
+                    </div>
+                    <h3 className="m-0 text-lg font-semibold text-ink">
+                      {language === 'bn' ? station.nameBn || station.name : station.name}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-[11px] font-semibold text-slate">Active Ticket</div>
+                      <div className="font-mono text-base font-bold text-teal">
+                        {station.currentTicketNumber || '—'}
+                      </div>
+                    </div>
+                    <Button
+                      variant="small"
+                      icon={<PhGear size={14} />}
+                      onClick={() => void openManageStation(station)}
                     >
-                      {station.stationType.replace('_', ' ')}
+                      Configure
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Station Details */}
+                <div className="mb-4 rounded-xl bg-bone p-3.5 text-xs">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-slate">Assigned Personnel:</span>
+                    <strong className="text-ink">{station.currentStaffName || 'Not assigned'}</strong>
+                  </div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-slate">Patients Waiting in Line:</span>
+                    <span className="rounded-md bg-paper px-2 py-0.5 font-bold text-ink">
+                      {waitingAtStation} patients
                     </span>
-                    <StatusPill
-                      label={station.status.toUpperCase()}
-                      variant={
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate">Completed Today:</span>
+                    <span className="font-semibold text-pine">
+                      {station.completedTodayCount ?? '—'}
+                      {station.completedTodayCount != null ? ' visits' : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Operational Action Controls */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={waitingAtStation === 0}
+                    onClick={() => void callNextPatient(station.id)}
+                    className="flex-1 cursor-pointer rounded-xl bg-teal px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-pine disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Call Next Patient
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextSt =
                         station.status === 'available'
-                          ? 'available'
-                          : station.status === 'busy'
                           ? 'busy'
-                          : 'cancelled'
-                      }
-                    />
-                  </div>
-                  <h3 className="m-0 text-lg font-semibold text-ink">
-                    {language === 'bn' ? station.nameBn || station.name : station.name}
-                  </h3>
-                </div>
+                          : station.status === 'busy'
+                            ? 'paused'
+                            : 'available';
+                      void toggleStationStatus(station.id, nextSt as StationStatus);
+                    }}
+                    className="cursor-pointer rounded-xl border border-line bg-paper px-3 py-2 text-xs font-semibold text-ink hover:bg-bone"
+                  >
+                    Toggle State
+                  </button>
 
-                <div className="text-right">
-                  <div className="text-[11px] font-semibold text-slate">Active Ticket</div>
-                  <div className="font-mono text-base font-bold text-teal">
-                    {station.currentTicketNumber || '—'}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void toggleStationStatus(
+                        station.id,
+                        station.status === 'out_of_service' ? 'available' : 'out_of_service'
+                      )
+                    }
+                    className={`cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold ${
+                      station.status === 'out_of_service'
+                        ? 'border-ok bg-paper text-ok hover:bg-ok-bg'
+                        : 'border-bad/30 bg-paper text-bad hover:bg-bad-bg'
+                    }`}
+                  >
+                    {station.status === 'out_of_service' ? 'Reopen Desk' : 'Out of Service'}
+                  </button>
                 </div>
-              </div>
-
-              {/* Station Details */}
-              <div className="mb-4 rounded-xl bg-bone p-3.5 text-xs">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-slate">Assigned Personnel:</span>
-                  <strong className="text-ink">{station.currentStaffName || 'Not assigned'}</strong>
-                </div>
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-slate">Patients Waiting in Line:</span>
-                  <span className="rounded-md bg-paper px-2 py-0.5 font-bold text-ink">
-                    {waitingAtStation} patients
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate">Completed Today:</span>
-                  <span className="font-semibold text-pine">{station.completedTodayCount ?? '—'}{station.completedTodayCount != null ? ' visits' : ''}</span>
-                </div>
-              </div>
-
-              {/* Operational Action Controls */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={waitingAtStation === 0}
-                  onClick={() => callNextPatient(station.id)}
-                  className="flex-1 cursor-pointer rounded-xl bg-teal px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-pine disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Call Next Patient
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextSt =
-                      station.status === 'available'
-                        ? 'busy'
-                        : station.status === 'busy'
-                        ? 'paused'
-                        : 'available';
-                    toggleStationStatus(station.id, nextSt as StationStatus);
-                  }}
-                  className="cursor-pointer rounded-xl border border-line bg-paper px-3 py-2 text-xs font-semibold text-ink hover:bg-bone"
-                >
-                  Toggle State
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    toggleStationStatus(
-                      station.id,
-                      station.status === 'out_of_service' ? 'available' : 'out_of_service'
-                    )
-                  }
-                  className={`cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold ${
-                    station.status === 'out_of_service'
-                      ? 'border-ok text-ok bg-paper hover:bg-ok-bg'
-                      : 'border-bad/30 text-bad bg-paper hover:bg-bad-bg'
-                  }`}
-                >
-                  {station.status === 'out_of_service' ? 'Reopen Desk' : 'Out of Service'}
-                </button>
-              </div>
-            </Card>
-          );
-        })
+              </Card>
+            );
+          })
         )}
       </div>
 
@@ -276,7 +364,13 @@ export const StationsView: React.FC = () => {
         <form onSubmit={handleCreateStation} className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate">Station code *</label>
-            <input type="text" required value={newStationCode} onChange={(e) => setNewStationCode(e.target.value)} className="h-10 w-full rounded-xl border border-line px-3 text-sm" />
+            <input
+              type="text"
+              required
+              value={newStationCode}
+              onChange={(e) => setNewStationCode(e.target.value)}
+              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate">Station Name</label>
@@ -304,14 +398,107 @@ export const StationsView: React.FC = () => {
             </select>
           </div>
 
-          <p className="m-0 text-xs text-slate">Create the station first. Staff assignments are maintained in shift/roster APIs.</p>
+          <p className="m-0 text-xs text-slate">
+            Create the station first. Staff assignments are maintained in shift/roster APIs.
+          </p>
 
           <div className="flex justify-end gap-2 pt-3">
-            <Button variant="secondary" onClick={() => setIsAddStationOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Create Desk</Button>
+            <Button variant="secondary" onClick={() => setIsAddStationOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              Create Desk
+            </Button>
           </div>
         </form>
       </ModalSheet>
+
+      {/* Configure Station & Supported Service Types Modal */}
+      {managingStation && (
+        <ModalSheet
+          isOpen={!!managingStation}
+          onClose={() => setManagingStation(null)}
+          title={`Configure Station: ${managingStation.name}`}
+          subtitle="Update station metadata, bind supported service types, or delete idle station"
+        >
+          <form onSubmit={handleSaveStation} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-xs font-semibold text-slate">
+                Station Name *
+                <input
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-slate">
+                Station Name (Bangla)
+                <input
+                  value={editNameBn}
+                  onChange={(e) => setEditNameBn(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+                />
+              </label>
+            </div>
+
+            <label className="block text-xs font-semibold text-slate">
+              Station Category
+              <select
+                value={editType}
+                onChange={(e) => setEditType(e.target.value as HubStation['stationType'])}
+                className="mt-1 h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm font-normal"
+              >
+                <option value="registration">Registration & Identity Desk</option>
+                <option value="vitals">Vitals & Screening Room</option>
+                <option value="doctor_review">Local Doctor Consultation</option>
+                <option value="counseling">Tele-triage & Patient Counseling</option>
+                <option value="waiting">Waiting Area</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+
+            <div>
+              <div className="mb-1.5 text-xs font-semibold text-slate">
+                Supported Catalogue Service Types ({selectedServiceTypeIds.length} selected)
+              </div>
+              <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-line bg-bone p-3">
+                {serviceTypes.map((st) => (
+                  <label key={st.id} className="flex items-center gap-2 text-xs text-ink">
+                    <input
+                      type="checkbox"
+                      checked={selectedServiceTypeIds.includes(st.id)}
+                      onChange={() => toggleServiceTypeSelection(st.id)}
+                    />
+                    <span>
+                      {st.name} <span className="font-mono text-slate">({st.code})</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-line pt-3">
+              <button
+                type="button"
+                disabled={stationBusy}
+                onClick={() => void handleDeleteStation(managingStation.id)}
+                className="cursor-pointer rounded-xl border border-bad/40 bg-bad-bg px-3 py-2 text-xs font-semibold text-bad-fg"
+              >
+                Delete Station
+              </button>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setManagingStation(null)}>
+                  Cancel
+                </Button>
+                <Button variant="primary" type="submit" disabled={stationBusy}>
+                  Save Station
+                </Button>
+              </div>
+            </div>
+          </form>
+        </ModalSheet>
+      )}
     </div>
   );
 };

@@ -63,13 +63,18 @@ export interface WalkInResponse {
 
 export interface QueueHistoryEvent {
   id: string;
-  timestamp: string;
-  action: string;
-  fromStatus?: string;
-  toStatus?: string;
-  stationName?: string;
-  staffName?: string;
-  notes?: string;
+  timestamp?: string;
+  occurredAt?: string;
+  action?: string;
+  eventType?: string;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  stationName?: string | null;
+  staffName?: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  actor?: { name?: string | null } | null;
+  toStation?: { name?: string | null } | null;
 }
 
 export const queueService = {
@@ -210,7 +215,16 @@ export const queueService = {
    * Get ticket progression audit history
    */
   async getTicketHistory(ticketId: string): Promise<QueueHistoryEvent[]> {
-    return apiRequest<QueueHistoryEvent[]>(`/queue-tickets/${ticketId}/history`);
+    const res = await apiRequest<{ items: QueueHistoryEvent[] } | QueueHistoryEvent[]>(`/queue-tickets/${ticketId}/history`);
+    const items = Array.isArray(res) ? res : res.items || [];
+    return items.map((e) => ({
+      ...e,
+      timestamp: e.timestamp || e.occurredAt || '',
+      action: e.action || e.eventType || 'status_change',
+      staffName: e.staffName || e.actor?.name || undefined,
+      stationName: e.stationName || e.toStation?.name || undefined,
+      notes: e.notes || e.reason || undefined,
+    }));
   },
 
   /**

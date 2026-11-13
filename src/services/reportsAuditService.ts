@@ -102,6 +102,25 @@ export function isBreakGlassActive(record: BreakGlassLog): boolean {
   return !record.endedAt && Boolean(expiration && expiration.getTime() > Date.now());
 }
 
+export interface ApiDataExport {
+  id: string;
+  requestedById?: string;
+  reportCode: string;
+  purpose: string;
+  scopeHubId?: string | null;
+  scopeRegionId?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  patientLevel: boolean;
+  status: 'requested' | 'approved' | 'rejected' | 'generated' | 'expired';
+  approvedById?: string | null;
+  approvedAt?: string | null;
+  generatedAt?: string | null;
+  rowCount?: number | null;
+  expiresAt?: string | null;
+  createdAt?: string;
+}
+
 export const reportsAuditService = {
   // ---- DASHBOARD OVERVIEW ----
 
@@ -126,10 +145,35 @@ export const reportsAuditService = {
     return apiRequest(`/reports/${code}`, { params });
   },
 
-  async requestExport(data: { reportCode: string; from: string; to: string; hubId?: string; regionId?: string; purpose: string; patientLevel?: boolean }): Promise<{ id: string; status: string; reportCode: string }> {
+  async getExports(params?: {
+    status?: 'requested' | 'approved' | 'rejected' | 'generated' | 'expired';
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiDataExport[]> {
+    const res = await apiRequest<ApiDataExport[] | { items: ApiDataExport[] }>('/exports', {
+      params: params as Record<string, string | number>,
+    });
+    return Array.isArray(res) ? res : res.items || [];
+  },
+
+  async requestExport(data: { reportCode: string; from: string; to: string; hubId?: string; regionId?: string; purpose: string; patientLevel?: boolean }): Promise<ApiDataExport> {
     return apiRequest('/exports', {
       method: 'POST',
       json: data,
+    });
+  },
+
+  async approveExport(id: string): Promise<ApiDataExport> {
+    return apiRequest(`/exports/${id}/approve`, {
+      method: 'POST',
+      json: {},
+    });
+  },
+
+  async rejectExport(id: string, reason: string): Promise<ApiDataExport> {
+    return apiRequest(`/exports/${id}/reject`, {
+      method: 'POST',
+      json: { reason },
     });
   },
 
@@ -145,6 +189,10 @@ export const reportsAuditService = {
     targetType?: string;
     targetId?: string;
     actorUserId?: string;
+    action?: string;
+    hubId?: string;
+    outcome?: 'success' | 'denied' | 'error';
+    priority?: 'normal' | 'high';
     from?: string;
     to?: string;
   }): Promise<ApiAuditEvent[]> {

@@ -66,12 +66,33 @@ export interface SessionListResponse {
 export interface SessionSlot {
   id: string;
   sessionId: string;
+  startTime?: string;
+  endTime?: string;
+  startsAt?: string;
+  endsAt?: string;
+  maxCapacity?: number;
+  capacity?: number;
+  bookedCount: number;
+  status: 'available' | 'booked' | 'blocked' | 'full';
+  blockedReason?: string | null;
+}
+
+export interface ApiSessionRecurrence {
+  id: string;
+  hubId: string;
+  serviceTypeId: string;
+  title: string;
+  sessionType: ApiSession['sessionType'];
+  rrule: string;
   startTime: string;
   endTime: string;
-  maxCapacity: number;
-  bookedCount: number;
-  status: 'available' | 'booked' | 'blocked';
-  blockedReason?: string | null;
+  startsOn: string;
+  endsOn?: string | null;
+  appointmentCapacity: number;
+  walkInCapacity: number;
+  slotMinutes: number;
+  active?: boolean;
+  status?: string;
 }
 
 export interface SessionReadinessIssue {
@@ -201,6 +222,69 @@ export const sessionsService = {
     return apiRequest<SessionSlot[]>(`/sessions/${sessionId}/slots/generate`, {
       method: 'POST',
       json: data,
+    });
+  },
+
+  /**
+   * Block a specific session slot
+   */
+  async blockSlot(sessionId: string, slotId: string, reason?: string): Promise<SessionSlot> {
+    return apiRequest<SessionSlot>(`/sessions/${sessionId}/slots/${slotId}/block`, {
+      method: 'POST',
+      json: reason ? { reason } : {},
+    });
+  },
+
+  /**
+   * Unblock a specific session slot
+   */
+  async unblockSlot(sessionId: string, slotId: string): Promise<SessionSlot> {
+    return apiRequest<SessionSlot>(`/sessions/${sessionId}/slots/${slotId}/unblock`, {
+      method: 'POST',
+      json: {},
+    });
+  },
+
+  // ---- SESSION RECURRENCES ----
+
+  async getRecurrences(hubId?: string): Promise<{ items?: ApiSessionRecurrence[] } | ApiSessionRecurrence[]> {
+    return apiRequest('/session-recurrences', {
+      params: hubId ? { hubId } : undefined,
+    });
+  },
+
+  async createRecurrence(data: {
+    hubId: string;
+    serviceTypeId: string;
+    title: string;
+    sessionType?: ApiSession['sessionType'];
+    rrule: string;
+    startTime: string;
+    endTime: string;
+    startsOn: string;
+    endsOn?: string;
+    appointmentCapacity: number;
+    walkInCapacity?: number;
+    slotMinutes: number;
+  }): Promise<ApiSessionRecurrence> {
+    return apiRequest<ApiSessionRecurrence>('/session-recurrences', {
+      method: 'POST',
+      json: data,
+    });
+  },
+
+  async deactivateRecurrence(id: string, reason: string): Promise<ApiSessionRecurrence> {
+    return apiRequest<ApiSessionRecurrence>(`/session-recurrences/${id}/deactivate`, {
+      method: 'POST',
+      json: { reason },
+    });
+  },
+
+  async materializeRecurrence(id: string, until: string): Promise<{ created?: number; sessions?: ApiSession[] }> {
+    return apiRequest(`/session-recurrences/${id}/materialize`, {
+      method: 'POST',
+      params: { until },
+      json: {},
     });
   },
 };

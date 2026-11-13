@@ -101,6 +101,10 @@ export function normalizeRoute(path: string): AppRoute {
     case 'settings':
     case 'permissions':
       return '/settings';
+    case 'catalog':
+    case 'catalogue':
+    case 'protocols':
+      return '/catalog';
     case 'audit':
     case 'audit-logs':
       return '/audit-logs';

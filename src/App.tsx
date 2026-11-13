@@ -21,6 +21,7 @@ import { ReportsView } from './components/views/ReportsView';
 import { NotificationsActivityView } from './components/views/NotificationsActivityView';
 import { SettingsPermissionsView } from './components/views/SettingsPermissionsView';
 import { AuditLogsView } from './components/views/AuditLogsView';
+import { CatalogGovernanceView } from './components/views/CatalogGovernanceView';
 import { PhCheckCircle } from './components/icons/PhosphorIcons';
 
 const AppContent: React.FC = () => {
@@ -60,6 +61,8 @@ const AppContent: React.FC = () => {
         return <SettingsPermissionsView />;
       case '/audit-logs':
         return <AuditLogsView />;
+      case '/catalog':
+        return <CatalogGovernanceView />;
       default:
         return <OverviewDashboard />;
     }
