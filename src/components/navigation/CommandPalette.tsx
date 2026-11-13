@@ -68,6 +68,7 @@ export const CommandPalette: React.FC = () => {
     { path: '/notifications', label: t.navNotifications, icon: PhBell, tags: 'activity sms push dispatches' },
     { path: '/settings', label: t.navSettings, icon: PhSlidersHorizontal, tags: 'permissions rbac pdpa 2026 dghs compliance' },
     { path: '/audit-logs', label: t.navAuditLogs, icon: PhShieldCheck, tags: 'immutable security ledger activity' },
+    { path: '/catalog', label: t.navCatalog, icon: PhShieldCheck, tags: 'service types protocols observation definitions consent templates queue priority alert rules governance' },
   ];
 
   const matchedModules = query.trim()

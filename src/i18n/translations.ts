@@ -19,6 +19,7 @@ export interface TranslationDict {
   navSettings: string;
   navAudit: string;
   navAuditLogs: string;
+  navCatalog: string;
   todaySession: string;
   activeHubs: string;
   appointmentsToday: string;
@@ -96,6 +97,7 @@ export const translations: Record<'en' | 'bn', TranslationDict> = {
     navSettings: 'Settings & Permissions',
     navAudit: 'Audit Logs',
     navAuditLogs: 'Audit Logs',
+    navCatalog: 'Service Catalogue & Protocols',
     todaySession: "Today's Hub Operations",
     activeHubs: 'Active Hubs',
     appointmentsToday: 'Booked Today',
@@ -114,7 +116,7 @@ export const translations: Record<'en' | 'bn', TranslationDict> = {
     addWalkIn: 'Register Walk-in',
     searchPlaceholder: 'Search by Healora ID, Ticket (e.g. A-102) or Phone...',
     simpleMode: 'Simple Mode',
-    dataResidencyNotice: 'Bangladesh Data Residency: PDPA 2026 & DGHS Telehealth compliant (Tier-IV National DC)',
+    dataResidencyNotice: 'Backend connection status is reported from live API requests.',
     roleSwitcher: 'Active Role',
     auditTrail: 'Immutable System Audit',
     offlineNotice: 'Mobile capture operates offline-safely. Syncing occurs upon connection.',
@@ -171,6 +173,7 @@ export const translations: Record<'en' | 'bn', TranslationDict> = {
     navSettings: 'সেটিংস ও অনুমতি',
     navAudit: 'অডিট লগ',
     navAuditLogs: 'অডিট লগ',
+    navCatalog: 'সেবা ক্যাটালগ ও প্রটোকল',
     todaySession: 'আজকের হাব কার্যক্রম',
     activeHubs: 'সক্রিয় হাব',
     appointmentsToday: 'আজকের বুকিং',
@@ -189,7 +192,7 @@ export const translations: Record<'en' | 'bn', TranslationDict> = {
     addWalkIn: 'ওয়াক-ইন নিবন্ধন',
     searchPlaceholder: 'হিলোরা আইডি, টোকেন (যেমন A-102) বা ফোন দিয়ে খুঁজুন...',
     simpleMode: 'সহজ মোড',
-    dataResidencyNotice: 'বাংলাদেশ ডাটা সুরক্ষা: PDPA ২০২৬ ও স্বাস্থ্য অধিদপ্তর টেলিহেলথ নীতিমালা অনুযায়ী সুরক্ষিত',
+    dataResidencyNotice: 'ব্যাকএন্ড সংযোগের অবস্থা সরাসরি API অনুরোধ থেকে দেখানো হয়।',
     roleSwitcher: 'বর্তমান ভূমিকা',
     auditTrail: 'অপরিবর্তনীয় সিস্টেম অডিট',
     offlineNotice: 'মোবাইল অ্যাপ অফলাইনে নিরাপদভাবে তথ্য জমা রাখে। নেটওয়ার্ক পেলেই স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।',

@@ -3,6 +3,7 @@ import {
   PhArrowsClockwise,
   PhCheckCircle,
   PhHospital,
+  PhShieldCheck,
 } from '../icons/PhosphorIcons';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -10,16 +11,24 @@ import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
 import { useApp } from '../../context/AppContext';
 import type { OperationalException } from '../../types';
+import {
+  encountersExceptionsService,
+  type ApiOperationalException,
+} from '../../services/encountersExceptionsService';
 
 export const ExceptionsEscalationsView: React.FC = () => {
   const {
     t,
     language,
     exceptions,
+    staff,
     selectedHubId,
     hubs,
-    retrySyncEncounter,
     resolveException,
+    acknowledgeException,
+    escalateException,
+    dismissException,
+    refreshBackendData,
     showToast,
   } = useApp();
 
@@ -28,30 +37,91 @@ export const ExceptionsEscalationsView: React.FC = () => {
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
 
+  // Inspect & Assign drawer state
+  const [inspectingExc, setInspectingExc] = useState<OperationalException | null>(null);
+  const [liveExceptionDetail, setLiveExceptionDetail] = useState<ApiOperationalException | null>(null);
+  const [assignUserId, setAssignUserId] = useState('');
+  const [scanning, setScanning] = useState(false);
+
   const currentHub = hubs.find((h) => h.id === selectedHubId) || hubs[0];
   const hubExceptions = exceptions.filter((exc) => exc.hubId === selectedHubId);
 
-  const filtered = severityFilter === 'all'
-    ? hubExceptions
-    : hubExceptions.filter((e) => e.severity === severityFilter);
+  const filtered =
+    severityFilter === 'all'
+      ? hubExceptions
+      : hubExceptions.filter((e) => e.severity === severityFilter);
 
   const handleResolveSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedException) return;
-    resolveException(selectedException.id, resolutionNotes || 'Resolved by operational supervisor.');
+    if (!resolutionNotes.trim()) return;
+    void resolveException(selectedException.id, resolutionNotes.trim());
     setIsResolveModalOpen(false);
     setSelectedException(null);
     setResolutionNotes('');
   };
 
+  const handleTriggerScan = async () => {
+    setScanning(true);
+    try {
+      const res = await encountersExceptionsService.triggerScan();
+      await refreshBackendData();
+      showToast(`Exception scan completed (${res.exceptionsFound ?? 0} found).`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Exception scan failed.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const openInspectModal = async (item: OperationalException) => {
+    setInspectingExc(item);
+    setLiveExceptionDetail(null);
+    setAssignUserId('');
+    try {
+      const detail = await encountersExceptionsService.getException(item.id);
+      setLiveExceptionDetail(detail);
+      if (detail.assignedToUserId || detail.assignedTo?.id) {
+        setAssignUserId(detail.assignedToUserId || detail.assignedTo?.id || '');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleAssignException = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inspectingExc || !assignUserId) return;
+    try {
+      await encountersExceptionsService.assign(inspectingExc.id, assignUserId);
+      await refreshBackendData();
+      setInspectingExc(null);
+      showToast('Exception assigned to staff member.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to assign exception.');
+    }
+  };
+
   const getSeverityBadge = (sev: OperationalException['severity']) => {
     switch (sev) {
       case 'critical':
-        return <span className="rounded-md bg-bad-bg px-2 py-0.5 text-[11px] font-bold uppercase text-bad-fg">CRITICAL ESCALATION</span>;
+        return (
+          <span className="rounded-md bg-bad-bg px-2 py-0.5 text-[11px] font-bold uppercase text-bad-fg">
+            CRITICAL ESCALATION
+          </span>
+        );
       case 'warning':
-        return <span className="rounded-md bg-warn-bg px-2 py-0.5 text-[11px] font-bold uppercase text-warn-fg">WARNING</span>;
+        return (
+          <span className="rounded-md bg-warn-bg px-2 py-0.5 text-[11px] font-bold uppercase text-warn-fg">
+            WARNING
+          </span>
+        );
       case 'info':
-        return <span className="rounded-md bg-sage-200 px-2 py-0.5 text-[11px] font-bold uppercase text-pine">INFO</span>;
+        return (
+          <span className="rounded-md bg-sage-200 px-2 py-0.5 text-[11px] font-bold uppercase text-pine">
+            INFO
+          </span>
+        );
     }
   };
 
@@ -66,54 +136,70 @@ export const ExceptionsEscalationsView: React.FC = () => {
             </span>
             <span className="size-2 animate-pulse-live rounded-full bg-bad" />
           </div>
-          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
-            {t.navExceptions}
-          </h1>
+          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">{t.navExceptions}</h1>
           <p className="mt-1 mb-0 text-sm text-slate">
-            {currentHub.name} • {language === 'bn'
+            {currentHub?.name || 'Healora Hub'} •{' '}
+            {language === 'bn'
               ? 'মোবাইল সিঙ্ক জটিলতা, অসম্পূর্ণ পরিমাপ, অতিরিক্ত অপেক্ষার সময় ও চিকিৎসা রেফারেল ট্র্যাকিং'
               : 'Real-time exception routing, offline sync recovery, wait-time SLA violations and clinical referrals'}
           </p>
         </div>
 
-        <Button
-          variant="secondary"
-          onClick={() => showToast('Refreshed operational exception queues.')}
-          icon={<PhArrowsClockwise size={16} />}
-        >
-          {language === 'bn' ? 'রিফ্রেশ' : 'Refresh Queues'}
-        </Button>
-      </div>
-
-      {/* Emergency Facility Reference Card (PRD Section 8.3 & 13.3) */}
-      <div className="mb-6 rounded-2xl border border-bad/30 bg-bad-bg/40 p-4.5">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-bad text-white">
-              <PhHospital size={20} color="#FFFFFF" />
-            </div>
-            <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-bad-fg">
-                Emergency Referral Facility On Standby (PRD Section 13.3 SOP)
-              </div>
-              <h3 className="m-0 text-base font-bold text-ink">
-                {currentHub.emergencyReferralFacility}
-              </h3>
-              <div className="text-xs text-slate">
-                Direct Emergency Line: <strong className="text-bad">{currentHub.emergencyPhone}</strong> • Nearest ambulance dispatch
-              </div>
-            </div>
-          </div>
-
+        <div className="flex items-center gap-2.5">
           <Button
             variant="secondary"
-            onClick={() => showToast(`Emergency contact dialed: ${currentHub.emergencyPhone}`)}
-            className="text-bad! border-bad/40!"
+            disabled={scanning}
+            onClick={() => void handleTriggerScan()}
+            icon={<PhShieldCheck size={16} />}
           >
-            Summon Emergency Contact
+            {scanning ? 'Scanning...' : 'Run Exception Scan'}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => void refreshBackendData()}
+            icon={<PhArrowsClockwise size={16} />}
+          >
+            {language === 'bn' ? 'রিফ্রেশ' : 'Refresh Queues'}
           </Button>
         </div>
       </div>
+
+      {/* Emergency Facility Reference Card */}
+      {(currentHub?.emergencyReferralFacility || currentHub?.emergencyPhone) && (
+        <div className="mb-6 rounded-2xl border border-bad/30 bg-bad-bg/40 p-4.5">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-bad text-white">
+                <PhHospital size={20} color="#FFFFFF" />
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-bad-fg">
+                  Emergency referral contact from hub record
+                </div>
+                <h3 className="m-0 text-base font-bold text-ink">
+                  {currentHub?.emergencyReferralFacility}
+                </h3>
+                <div className="text-xs text-slate">
+                  {currentHub?.emergencyPhone && (
+                    <>
+                      Phone: <strong className="text-bad">{currentHub.emergencyPhone}</strong>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {currentHub?.emergencyPhone && (
+              <a
+                href={`tel:${currentHub.emergencyPhone}`}
+                className="rounded-xl border border-bad/40 bg-paper px-3 py-2 text-sm font-semibold text-bad"
+              >
+                Call hub referral contact
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* KPI Severity Stat Cards */}
       <div className="mb-7 grid grid-cols-4 gap-4">
@@ -125,21 +211,29 @@ export const ExceptionsEscalationsView: React.FC = () => {
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Critical Safety Alerts</div>
           <div className="mt-1 text-3xl font-bold text-bad">
-            {hubExceptions.filter((e) => e.severity === 'critical' && e.status !== 'resolved').length}
+            {
+              hubExceptions.filter(
+                (e) => e.severity === 'critical' && !['resolved', 'dismissed'].includes(e.status)
+              ).length
+            }
           </div>
           <div className="mt-1 text-xs text-bad">Requires immediate supervision</div>
         </Card>
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Sync &amp; Wait Warnings</div>
           <div className="mt-1 text-3xl font-bold text-amber">
-            {hubExceptions.filter((e) => e.severity === 'warning' && e.status !== 'resolved').length}
+            {
+              hubExceptions.filter(
+                (e) => e.severity === 'warning' && !['resolved', 'dismissed'].includes(e.status)
+              ).length
+            }
           </div>
-          <div className="mt-1 text-xs text-amber font-semibold">Offline outbox or SLA breach</div>
+          <div className="mt-1 text-xs font-semibold text-amber">Offline outbox or SLA breach</div>
         </Card>
         <Card variant="card">
           <div className="text-xs font-semibold uppercase text-slate">Resolved Today</div>
           <div className="mt-1 text-3xl font-bold text-ok">
-            {hubExceptions.filter((e) => e.status === 'resolved').length}
+            {hubExceptions.filter((e) => ['resolved', 'dismissed'].includes(e.status)).length}
           </div>
           <div className="mt-1 text-xs text-slate">Handled with audit confirmation</div>
         </Card>
@@ -154,7 +248,9 @@ export const ExceptionsEscalationsView: React.FC = () => {
             type="button"
             onClick={() => setSeverityFilter(sev)}
             className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-              severityFilter === sev ? 'bg-ink text-white' : 'bg-paper border border-line text-slate hover:bg-mist'
+              severityFilter === sev
+                ? 'bg-ink text-white'
+                : 'border border-line bg-paper text-slate hover:bg-mist'
             }`}
           >
             {sev === 'all' ? 'All Deviations' : sev.toUpperCase()}
@@ -164,82 +260,193 @@ export const ExceptionsEscalationsView: React.FC = () => {
 
       {/* Exceptions List */}
       <div className="space-y-3.5">
-        {filtered.map((item) => (
-          <Card
-            key={item.id}
-            variant="card"
-            className={`border-l-4! ${
-              item.status === 'resolved'
-                ? 'border-l-ok! opacity-60'
-                : item.severity === 'critical'
-                ? 'border-l-bad!'
-                : item.severity === 'warning'
-                ? 'border-l-amber!'
-                : 'border-l-teal!'
-            }`}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-slate">{item.code}</span>
-                  {getSeverityBadge(item.severity)}
-                  <StatusPill
-                    label={item.status.toUpperCase()}
-                    variant={item.status === 'resolved' ? 'completed' : 'draft'}
-                  />
-                  <span className="text-xs text-slate">• Logged {item.createdAt}</span>
+        {filtered.length === 0 ? (
+          <Card variant="card" className="py-12 text-center text-slate">
+            <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-2xl bg-mist text-teal">
+              <PhCheckCircle size={24} />
+            </div>
+            <p className="font-semibold text-ink">No active exceptions or escalations</p>
+            <p className="text-xs text-slate">
+              All session queues, patient wait times, device calibrations, and mobile synchronizations are operating within normal operational parameters.
+            </p>
+          </Card>
+        ) : (
+          filtered.map((item) => (
+            <Card
+              key={item.id}
+              variant="card"
+              className={`border-l-4! ${
+                ['resolved', 'dismissed'].includes(item.status)
+                  ? 'border-l-ok! opacity-60'
+                  : item.severity === 'critical'
+                    ? 'border-l-bad!'
+                    : item.severity === 'warning'
+                      ? 'border-l-amber!'
+                      : 'border-l-teal!'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-slate">{item.code}</span>
+                    {getSeverityBadge(item.severity)}
+                    <StatusPill
+                      label={item.status.toUpperCase()}
+                      variant={['resolved', 'dismissed'].includes(item.status) ? 'completed' : 'draft'}
+                    />
+                    <span className="text-xs text-slate">• Logged {item.createdAt}</span>
+                  </div>
+
+                  <h3 className="m-0 text-base font-semibold text-ink">
+                    {language === 'bn' ? item.titleBn : item.title}
+                  </h3>
+                  <p className="mt-1 mb-2 text-xs leading-relaxed text-slate">{item.details}</p>
+
+                  {item.patientName && (
+                    <div className="text-xs text-slate">
+                      Associated Patient: <strong className="text-ink">{item.patientName}</strong>
+                      {item.encounterId && (
+                        <span className="ml-2 font-mono text-teal">({item.encounterId})</span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <h3 className="m-0 text-base font-semibold text-ink">
-                  {language === 'bn' ? item.titleBn : item.title}
-                </h3>
-                <p className="mt-1 mb-2 text-xs text-slate leading-relaxed">
-                  {item.details}
-                </p>
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void openInspectModal(item)}
+                    className="cursor-pointer rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-teal hover:bg-bone"
+                  >
+                    Inspect & Assign
+                  </button>
 
-                {item.patientName && (
-                  <div className="text-xs text-slate">
-                    Associated Patient: <strong className="text-ink">{item.patientName}</strong>
-                    {item.encounterId && <span className="ml-2 font-mono text-teal">({item.encounterId})</span>}
-                  </div>
-                )}
-              </div>
+                  {!['resolved', 'dismissed'].includes(item.status) ? (
+                    <>
+                      {item.status === 'open' && (
+                        <button
+                          type="button"
+                          onClick={() => void acknowledgeException(item.id)}
+                          className="cursor-pointer rounded-xl bg-teal px-3 py-1.5 text-xs font-semibold text-white hover:bg-pine"
+                        >
+                          Acknowledge
+                        </button>
+                      )}
 
-              {/* Action Buttons */}
-              <div className="flex flex-col items-end gap-2">
-                {item.status !== 'resolved' ? (
-                  <>
-                    {item.category === 'sync_error' && item.encounterId && (
                       <button
                         type="button"
-                        onClick={() => retrySyncEncounter(item.encounterId!)}
-                        className="cursor-pointer rounded-xl bg-teal px-3 py-1.5 text-xs font-semibold text-white hover:bg-pine"
+                        onClick={() => {
+                          const note = window.prompt('Enter the escalation note:');
+                          if (note?.trim()) {
+                            void escalateException(
+                              item.id,
+                              item.category === 'clinical_escalation'
+                                ? 'clinical_operations'
+                                : 'regional_operations',
+                              note.trim()
+                            );
+                          }
+                        }}
+                        className="cursor-pointer rounded-xl border border-warn bg-paper px-3 py-1.5 text-xs font-semibold text-warn-fg"
                       >
-                        Retry Server Sync
+                        Escalate
                       </button>
-                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedException(item);
-                        setIsResolveModalOpen(true);
-                      }}
-                      className="cursor-pointer rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink hover:bg-bone"
-                    >
-                      Resolve Exception
-                    </button>
-                  </>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-ok">
-                    <PhCheckCircle size={16} /> Resolved
-                  </span>
-                )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const reason = window.prompt('Enter the reason for dismissing this exception:');
+                          if (reason?.trim()) void dismissException(item.id, reason.trim());
+                        }}
+                        className="cursor-pointer rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-slate"
+                      >
+                        Dismiss
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedException(item);
+                          setIsResolveModalOpen(true);
+                        }}
+                        className="cursor-pointer rounded-xl border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink hover:bg-bone"
+                      >
+                        Resolve Exception
+                      </button>
+                    </>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-ok">
+                      <PhCheckCircle size={16} /> Resolved
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))
+        )}
       </div>
+
+      {/* Inspect & Assign Modal */}
+      {inspectingExc && (
+        <ModalSheet
+          isOpen={!!inspectingExc}
+          onClose={() => setInspectingExc(null)}
+          title={`Incident Detail: ${inspectingExc.code}`}
+          subtitle={inspectingExc.title}
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl bg-bone p-3.5 text-xs text-slate space-y-1">
+              <div>
+                Type: <strong className="text-ink">{liveExceptionDetail?.type || inspectingExc.category}</strong>
+              </div>
+              <div>
+                Severity: <strong className="text-ink">{liveExceptionDetail?.severity || inspectingExc.severity}</strong>
+              </div>
+              <div>
+                Status: <strong className="text-ink">{liveExceptionDetail?.status || inspectingExc.status}</strong>
+              </div>
+              {liveExceptionDetail?.assignedTo?.name && (
+                <div>
+                  Currently Assigned To: <strong className="text-ink">{liveExceptionDetail.assignedTo.name}</strong>
+                </div>
+              )}
+              {liveExceptionDetail?.entityType && (
+                <div>
+                  Entity: {liveExceptionDetail.entityType} ({liveExceptionDetail.entityId})
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleAssignException} className="space-y-3">
+              <label className="block text-xs font-semibold text-slate">
+                Assign Incident Owner (/exceptions/{'{id}'}/assign)
+                <select
+                  required
+                  value={assignUserId}
+                  onChange={(e) => setAssignUserId(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-line bg-paper px-3 text-sm font-normal"
+                >
+                  <option value="">Select staff member...</option>
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.fullName} ({s.role})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setInspectingExc(null)}>
+                  Close
+                </Button>
+                <Button variant="primary" type="submit">
+                  Assign Owner
+                </Button>
+              </div>
+            </form>
+          </div>
+        </ModalSheet>
+      )}
 
       {/* Resolve Modal */}
       <ModalSheet
@@ -249,24 +456,31 @@ export const ExceptionsEscalationsView: React.FC = () => {
       >
         <form onSubmit={handleResolveSubmit} className="space-y-4">
           <div className="text-xs text-slate">
-            Resolving incident <strong className="text-ink">{selectedException?.code}</strong>: {selectedException?.title}.
+            Resolving incident <strong className="text-ink">{selectedException?.code}</strong>:{' '}
+            {selectedException?.title}.
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Supervisor Resolution Notes (Audited)</label>
+            <label className="mb-1 block text-xs font-semibold text-slate">
+              Supervisor Resolution Notes (Audited)
+            </label>
             <textarea
               rows={3}
               required
               value={resolutionNotes}
               onChange={(e) => setResolutionNotes(e.target.value)}
-              placeholder="Explain how this operational exception was handled (e.g. re-assigned patient to Doctor Mehta desk, confirmed retry sync)..."
+              placeholder="Explain how this operational exception was handled..."
               className="w-full rounded-xl border border-line p-3 text-sm"
             />
           </div>
 
           <div className="flex justify-end gap-2 pt-3">
-            <Button variant="secondary" onClick={() => setIsResolveModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Mark as Resolved</Button>
+            <Button variant="secondary" onClick={() => setIsResolveModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              Mark as Resolved
+            </Button>
           </div>
         </form>
       </ModalSheet>

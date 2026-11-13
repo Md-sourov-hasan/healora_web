@@ -1,515 +1,548 @@
-import React, { useState } from 'react';
-import {
-  PhGlobe,
-  PhMapPin,
-  PhPlus,
-  PhHospital,
-  PhShieldCheck,
-} from '../icons/PhosphorIcons';
+import React, { useEffect, useState, useCallback } from 'react';
+import { PhGlobe, PhPlus, PhArrowsClockwise } from '../icons/PhosphorIcons';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { StatusPill } from '../common/StatusPill';
 import { ModalSheet } from '../common/ModalSheet';
-import { useApp } from '../../context/AppContext';
-import type { CatchmentArea } from '../../types';
+import { SegmentedTabs } from '../common/Tabs';
+import { useApp } from '../../context/useApp';
+import type { Region } from '../../types';
+import { regionsService, type ApiRegion } from '../../services/regionsService';
+import { hubsService } from '../../services/hubsService';
+
+const levels: NonNullable<Region['level']>[] = [
+  'operational_region',
+  'division',
+  'district',
+  'upazila',
+  'union',
+  'ward',
+  'village',
+];
 
 export const RegionsCatchmentView: React.FC = () => {
   const {
     t,
-    language,
     regions,
     catchments,
     hubs,
+    selectedHubId,
     addRegion,
     addCatchment,
+    refreshBackendData,
+    showToast,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'catchments' | 'regions'>('catchments');
-  const [selectedRegionFilter, setSelectedRegionFilter] = useState<string>('all');
-  const [isAddCatchmentOpen, setIsAddCatchmentOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'directory' | 'tree' | 'catchments'>('directory');
   const [isAddRegionOpen, setIsAddRegionOpen] = useState(false);
-  const [selectedCatchment, setSelectedCatchment] = useState<CatchmentArea | null>(null);
-
-  // Form states for Catchment
-  const [catchmentName, setCatchmentName] = useState('');
-  const [catchmentUpazila, setCatchmentUpazila] = useState('');
-  const [catchmentUnions, setCatchmentUnions] = useState('');
-  const [catchmentHubId, setCatchmentHubId] = useState(hubs[0]?.id || '');
-  const [catchmentPopulation, setCatchmentPopulation] = useState(150000);
-  const [catchmentRadius, setCatchmentRadius] = useState(7);
-  const [catchmentBasis, setCatchmentBasis] = useState<CatchmentArea['basis']>('operations_assignment');
-
-  // Form states for Region
+  const [isAddCatchmentOpen, setIsAddCatchmentOpen] = useState(false);
+  const [regionCode, setRegionCode] = useState('');
   const [regionName, setRegionName] = useState('');
-  const [regionDivision, setRegionDivision] = useState('Dhaka');
-  const [regionalManager, setRegionalManager] = useState('');
-  const [regionalPhone, setRegionalPhone] = useState('');
+  const [regionNameBn, setRegionNameBn] = useState('');
+  const [regionLevel, setRegionLevel] = useState<NonNullable<Region['level']> | ''>('');
+  const [parentId, setParentId] = useState('');
+  const [catchmentRegionId, setCatchmentRegionId] = useState('');
+  const [catchmentHubId, setCatchmentHubId] = useState(selectedHubId);
 
-  const filteredCatchments = selectedRegionFilter === 'all'
-    ? catchments
-    : catchments.filter((c) => c.regionId === selectedRegionFilter);
+  // Tree state
+  const [treeNodes, setTreeNodes] = useState<ApiRegion[]>([]);
+  const [loadingTree, setLoadingTree] = useState(false);
 
-  const handleCreateCatchment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!catchmentName.trim()) return;
-    const targetHub = hubs.find((h) => h.id === catchmentHubId);
-    addCatchment({
-      name: catchmentName,
-      nameBn: catchmentName,
-      hubId: catchmentHubId,
-      hubName: targetHub?.name || 'Assigned Hub',
-      upazila: catchmentUpazila || 'Upazila Sadar',
-      unions: catchmentUnions ? catchmentUnions.split(',').map((u) => u.trim()) : ['Union 1'],
-      estimatedPopulation: Number(catchmentPopulation),
-      coverageRadiusKm: Number(catchmentRadius),
-      basis: catchmentBasis,
-      regionId: targetHub?.regionId || 'reg_dhaka',
-    });
-    setCatchmentName('');
-    setCatchmentUpazila('');
-    setCatchmentUnions('');
-    setIsAddCatchmentOpen(false);
-  };
+  // Edit / Inspect Region modal state
+  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
+  const [liveRegionDetail, setLiveRegionDetail] = useState<ApiRegion | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editNameBn, setEditNameBn] = useState('');
+  const [editLevel, setEditLevel] = useState<NonNullable<Region['level']>>('upazila');
+  const [editParentId, setEditParentId] = useState('');
+  const [deactivateReason, setDeactivateReason] = useState('');
+  const [regionBusy, setRegionBusy] = useState(false);
 
-  const handleCreateRegion = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!regionName.trim()) return;
-    addRegion({
+  const loadTree = useCallback(async () => {
+    setLoadingTree(true);
+    try {
+      const nodes = await regionsService.getRegionTree();
+      setTreeNodes(nodes);
+    } catch {
+      setTreeNodes([]);
+    } finally {
+      setLoadingTree(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'tree') {
+      void loadTree();
+    }
+  }, [activeTab, loadTree]);
+
+  const handleCreateRegion = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!regionLevel) return;
+    const ok = await addRegion({
+      code: regionCode,
       name: regionName,
-      nameBn: regionName,
-      division: regionDivision,
-      regionalManagerName: regionalManager || 'Regional Manager',
-      regionalManagerPhone: regionalPhone || '+880 1711 000000',
-      catchmentPopulation: 500000,
-      districts: [regionDivision],
-      catchmentUnions: ['Central Union'],
+      level: regionLevel,
+      parentId: parentId || undefined,
     });
-    setRegionName('');
-    setRegionalManager('');
-    setRegionalPhone('');
-    setIsAddRegionOpen(false);
+    if (ok) {
+      setRegionCode('');
+      setRegionName('');
+      setRegionNameBn('');
+      setRegionLevel('');
+      setParentId('');
+      setIsAddRegionOpen(false);
+      if (activeTab === 'tree') void loadTree();
+    }
   };
+
+  const handleCreateCatchment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const ok = await addCatchment({ hubId: catchmentHubId, regionId: catchmentRegionId });
+    if (ok) {
+      setCatchmentRegionId('');
+      setIsAddCatchmentOpen(false);
+    }
+  };
+
+  const openInspectRegion = async (region: Region) => {
+    setEditingRegion(region);
+    setEditName(region.name);
+    setEditNameBn(region.nameBn || '');
+    setEditLevel((region.level as NonNullable<Region['level']>) || 'upazila');
+    setEditParentId('');
+    setDeactivateReason('');
+    setLiveRegionDetail(null);
+    setRegionBusy(true);
+    try {
+      const detail = await regionsService.getRegion(region.id);
+      setLiveRegionDetail(detail);
+      setEditName(detail.name);
+      setEditNameBn(detail.nameBn || '');
+      setEditLevel(detail.level);
+      setEditParentId(detail.parentId || '');
+    } catch {
+      // fallback to list item
+    } finally {
+      setRegionBusy(false);
+    }
+  };
+
+  const handleUpdateRegion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRegion) return;
+    setRegionBusy(true);
+    try {
+      await regionsService.updateRegion(editingRegion.id, {
+        name: editName.trim(),
+        nameBn: editNameBn.trim() || undefined,
+        level: editLevel,
+        parentId: editParentId || null,
+      });
+      setEditingRegion(null);
+      await refreshBackendData();
+      if (activeTab === 'tree') void loadTree();
+      showToast('Region updated.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to update region.');
+    } finally {
+      setRegionBusy(false);
+    }
+  };
+
+  const handleDeactivateRegion = async () => {
+    if (!editingRegion) return;
+    setRegionBusy(true);
+    try {
+      await regionsService.deactivateRegion(
+        editingRegion.id,
+        deactivateReason.trim() || 'Deactivated by regional administrator'
+      );
+      setEditingRegion(null);
+      await refreshBackendData();
+      if (activeTab === 'tree') void loadTree();
+      showToast('Region deactivated.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to deactivate region.');
+    } finally {
+      setRegionBusy(false);
+    }
+  };
+
+  const handleRemoveCatchment = async (hubId: string, regId: string) => {
+    try {
+      await hubsService.deleteCatchment(hubId, regId);
+      await refreshBackendData();
+      showToast('Catchment mapping removed.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to remove catchment.');
+    }
+  };
+
+  const renderTreeNode = (node: ApiRegion, depth = 0): React.ReactNode => (
+    <div key={node.id} className="space-y-1.5" style={{ marginLeft: depth * 20 }}>
+      <div className="flex items-center justify-between rounded-xl border border-line bg-paper px-3.5 py-2.5 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-ink px-2 py-0.5 font-mono text-[11px] font-bold text-white">
+            {node.code}
+          </span>
+          <span className="font-semibold text-ink">{node.name}</span>
+          {node.nameBn && <span className="text-slate">({node.nameBn})</span>}
+          <span className="rounded bg-bone px-2 py-0.5 text-[11px] uppercase text-slate">
+            {node.level.replaceAll('_', ' ')}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusPill label={node.active ? 'ACTIVE' : 'INACTIVE'} variant={node.active ? 'active' : 'cancelled'} />
+          <button
+            type="button"
+            onClick={() =>
+              void openInspectRegion({
+                id: node.id,
+                code: node.code,
+                name: node.name,
+                nameBn: node.nameBn || '',
+                level: node.level,
+                status: node.active ? 'active' : 'inactive',
+              })
+            }
+            className="cursor-pointer font-semibold text-teal hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+      {node.children && node.children.map((child) => renderTreeNode(child, depth + 1))}
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-10 py-8">
-      {/* Header */}
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-xs font-semibold tracking-[0.04em] uppercase text-teal">
-              {language === 'bn' ? 'ভৌগোলিক পরিধি ও সেবা বণ্টন' : 'GEOGRAPHIC SERVICE DELIMITATION'}
-            </span>
-            <StatusPill label="Administrative Area Mapped" variant="active" />
+          <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.04em] text-teal">
+            Geographic service regions & hierarchy
           </div>
-          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">
-            {t.navRegions}
-          </h1>
-          <p className="mt-1 mb-0 text-sm text-slate">
-            {language === 'bn'
-              ? 'উপজেলা ও ইউনিয়নভিত্তিক সেবা এলাকা নির্ধারণ, আঞ্চলিক পরিচালকদের দায়িত্ব ও ক্যাচমেন্ট নীতি'
-              : 'Defined administrative catchment areas, regional supervisor governance, and patient-to-hub assignment rules'}
+          <h1 className="m-0 font-ui text-[28px] font-semibold text-ink">{t.navRegions}</h1>
+          <p className="mt-1 text-sm text-slate">
+            Administrative hierarchy, region lifecycle controls, and hub catchment assignments.
           </p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="secondary"
-            onClick={() => setIsAddRegionOpen(true)}
-            icon={<PhGlobe size={16} />}
-          >
-            {language === 'bn' ? 'নতুন অঞ্চল (Region)' : 'Add Region'}
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setIsAddRegionOpen(true)} icon={<PhGlobe size={16} />}>
+            Add Region
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => setIsAddCatchmentOpen(true)}
-            icon={<PhPlus size={16} />}
-          >
-            {language === 'bn' ? 'ক্যাচমেন্ট এলাকা নির্ধারণ' : 'Add Catchment Area'}
+          <Button variant="primary" onClick={() => setIsAddCatchmentOpen(true)} icon={<PhPlus size={16} />}>
+            Assign Catchment
           </Button>
         </div>
       </div>
 
-      {/* PRD Privacy & Policy Notice (PRD Section 8.4) */}
-      <div className="mb-6 flex items-center gap-3 rounded-2xl border border-sage-200 bg-mist px-5 py-3.5 text-[13px] text-pine">
-        <PhShieldCheck size={20} color="#1D6B66" />
-        <div className="flex-1">
-          <strong>Catchment Governance (PRD Section 8.4):</strong> Healora relies strictly on administrative union/upazila mapping for catchment assignment. No continuous location/GPS tracking is collected. Patients outside the primary catchment may still receive care as controlled capacity exceptions.
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="mb-6 flex items-center justify-between border-b border-line pb-3">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('catchments')}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-              activeTab === 'catchments' ? 'bg-ink text-white' : 'text-slate hover:bg-mist'
-            }`}
-          >
-            {language === 'bn' ? 'ক্যাচমেন্ট এলাকাসমূহ' : 'Catchment Areas'} ({catchments.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('regions')}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-              activeTab === 'regions' ? 'bg-ink text-white' : 'text-slate hover:bg-mist'
-            }`}
-          >
-            {language === 'bn' ? 'প্রশাসনিক অঞ্চলসমূহ' : 'Administrative Regions'} ({regions.length})
-          </button>
-        </div>
-
-        {activeTab === 'catchments' && (
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate">
-            <span>Filter Region:</span>
-            <select
-              value={selectedRegionFilter}
-              onChange={(e) => setSelectedRegionFilter(e.target.value)}
-              className="rounded-lg border border-line bg-paper px-2.5 py-1 text-xs text-ink"
-            >
-              <option value="all">All Regions ({regions.length})</option>
-              {regions.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-          </div>
+      <div className="mb-6 flex items-center justify-between">
+        <SegmentedTabs
+          activeKey={activeTab}
+          onChange={(k) => setActiveTab(k as 'directory' | 'tree' | 'catchments')}
+          options={[
+            { key: 'directory', label: 'Regions Directory', count: regions.length },
+            { key: 'tree', label: 'Hierarchy Tree' },
+            { key: 'catchments', label: 'Hub Catchments', count: catchments.length },
+          ]}
+        />
+        {activeTab === 'tree' && (
+          <Button variant="small" onClick={() => void loadTree()} icon={<PhArrowsClockwise size={14} />}>
+            Refresh Tree
+          </Button>
         )}
       </div>
 
-      {/* Tab 1: Catchment Areas */}
-      {activeTab === 'catchments' && (
-        <div className="grid grid-cols-2 gap-6">
-          {filteredCatchments.map((catchment) => {
-            const mappedHub = hubs.find((h) => h.id === catchment.hubId);
-            return (
-              <Card key={catchment.id} variant="card" className="border-t-3! border-t-teal!">
-                <div className="mb-3 flex items-start justify-between">
-                  <div>
-                    <div className="mb-1 flex items-center gap-2">
-                      <span className="rounded-md bg-sage-200 px-2 py-0.5 text-[11px] font-bold text-pine">
-                        Upazila: {catchment.upazila}
-                      </span>
-                      <StatusPill
-                        label={catchment.basis.replace('_', ' ').toUpperCase()}
-                        variant="active"
-                      />
-                    </div>
-                    <h3 className="m-0 text-base font-semibold text-ink">
-                      {language === 'bn' ? catchment.nameBn : catchment.name}
-                    </h3>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCatchment(catchment)}
-                    className="cursor-pointer text-xs font-semibold text-teal hover:underline"
-                  >
-                    View Details
-                  </button>
-                </div>
-
-                <div className="mb-4 rounded-xl bg-bone p-3.5 text-xs">
-                  <div className="mb-1.5 flex items-center gap-1.5 font-semibold text-pine">
-                    <PhHospital size={16} color="#1D6B66" />
-                    <span>Serving Hub:</span>
-                    <strong className="text-ink">{mappedHub?.name || catchment.hubName}</strong>
-                  </div>
-                  <div className="text-slate">
-                    Radius: <strong>~{catchment.coverageRadiusKm} km</strong> • Est. Catchment Population: <strong>{catchment.estimatedPopulation.toLocaleString()}</strong>
-                  </div>
-                  <div className="mt-2 text-slate">
-                    Policy: <span className="font-semibold text-ink">{catchment.outOfCatchmentPolicy.replace(/_/g, ' ')}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate">
-                    Mapped Unions & Wards:
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {catchment.unions.map((union, idx) => (
-                      <span key={idx} className="rounded-md border border-line bg-paper px-2 py-1 text-xs text-ink">
-                        {union}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Tab 2: Administrative Regions */}
-      {activeTab === 'regions' && (
-        <div className="grid grid-cols-2 gap-6">
-          {regions.map((region) => (
-            <Card key={region.id} variant="card" className="border-t-3! border-t-pine!">
-              <div className="mb-3 flex items-start justify-between">
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="rounded-md bg-ink px-2 py-0.5 text-[11px] font-bold text-white">
-                      {region.code}
-                    </span>
-                    <StatusPill
-                      label={region.status === 'active' ? 'ACTIVE REGION' : 'PLANNED'}
-                      variant={region.status === 'active' ? 'active' : 'upcoming'}
-                    />
-                  </div>
-                  <h3 className="m-0 text-base font-semibold text-ink">
-                    {language === 'bn' ? region.nameBn : region.name}
-                  </h3>
-                  <div className="text-xs text-slate">
-                    Division: <strong>{region.division}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-4 grid grid-cols-3 gap-3 rounded-xl bg-bone p-3.5 text-center text-xs">
-                <div>
-                  <div className="text-slate">Active Hubs</div>
-                  <div className="text-lg font-bold text-teal">{region.activeHubsCount} / {region.totalHubsCount}</div>
-                </div>
-                <div>
-                  <div className="text-slate">Population</div>
-                  <div className="text-lg font-bold text-ink">{(region.catchmentPopulation / 1000000).toFixed(1)}M</div>
-                </div>
-                <div>
-                  <div className="text-slate">Districts</div>
-                  <div className="text-lg font-bold text-ink">{region.districts.length}</div>
-                </div>
-              </div>
-
-              <div className="text-xs text-slate">
-                <div className="mb-1">
-                  Regional Director: <strong className="text-ink">{region.regionalManagerName}</strong> ({region.regionalManagerPhone})
-                </div>
-                <div>
-                  Districts Covered: <span className="text-ink">{region.districts.join(', ')}</span>
-                </div>
-              </div>
+      {activeTab === 'directory' && (
+        <>
+          {regions.length === 0 ? (
+            <Card variant="card">
+              <p className="m-0 text-sm text-slate">No regions are available to this account.</p>
             </Card>
-          ))}
-        </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4">
+              {regions.map((region) => (
+                <Card key={region.id} variant="card">
+                  <div className="flex items-center justify-between">
+                    <span className="rounded bg-ink px-2 py-1 font-mono text-xs text-white">{region.code}</span>
+                    <span className="text-xs uppercase text-slate">
+                      {region.level?.replaceAll('_', ' ') ?? 'Level unavailable'}
+                    </span>
+                  </div>
+                  <h3 className="mb-1 mt-3 text-base font-semibold text-ink">{region.name}</h3>
+                  <p className="m-0 text-sm text-slate">
+                    Hubs: {region.totalHubsCount ?? '—'} · Active: {region.activeHubsCount ?? '—'}
+                  </p>
+                  <div className="mt-4 flex justify-end border-t border-line pt-3">
+                    <Button variant="small" onClick={() => void openInspectRegion(region)}>
+                      Inspect & Edit
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Modal: Add Catchment */}
-      <ModalSheet
-        isOpen={isAddCatchmentOpen}
-        onClose={() => setIsAddCatchmentOpen(false)}
-        title="Add Geographic Catchment Area"
-      >
-        <form onSubmit={handleCreateCatchment} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Catchment Area Name</label>
+      {activeTab === 'tree' && (
+        <Card variant="card">
+          {loadingTree ? (
+            <p className="m-0 text-sm text-slate">Loading hierarchical region tree...</p>
+          ) : treeNodes.length === 0 ? (
+            <p className="m-0 text-sm text-slate">No region tree nodes returned.</p>
+          ) : (
+            <div className="space-y-2">{treeNodes.map((n) => renderTreeNode(n, 0))}</div>
+          )}
+        </Card>
+      )}
+
+      {activeTab === 'catchments' && (
+        <>
+          {catchments.length === 0 ? (
+            <Card variant="card">
+              <p className="m-0 text-sm text-slate">No catchments were returned for the selected hub.</p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {catchments.map((item) => (
+                <Card key={item.id} variant="card">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="mb-1 mt-0 text-base font-semibold text-ink">
+                        {item.name || regions.find((region) => region.id === item.regionId)?.name || item.regionId}
+                      </h3>
+                      <p className="m-0 text-sm text-slate">
+                        Hub: {item.hubName || hubs.find((hub) => hub.id === item.hubId)?.name || item.hubId}
+                      </p>
+                      <p className="mb-0 mt-2 font-mono text-xs text-slate">Region ID: {item.regionId}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleRemoveCatchment(item.hubId, item.regionId)}
+                      className="cursor-pointer rounded-lg border border-bad/40 px-2.5 py-1 text-xs font-semibold text-bad hover:bg-bad-bg"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Create Region Modal */}
+      <ModalSheet isOpen={isAddRegionOpen} onClose={() => setIsAddRegionOpen(false)} title="Create Region">
+        <form onSubmit={handleCreateRegion} className="space-y-3">
+          <label className="block text-xs font-semibold text-slate">
+            Code *
             <input
-              type="text"
               required
-              value={catchmentName}
-              onChange={(e) => setCatchmentName(e.target.value)}
-              placeholder="e.g. Dhanmondi - Mohammadpur Urban Catchment"
-              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              value={regionCode}
+              onChange={(event) => setRegionCode(event.target.value)}
+              className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Primary Upazila</label>
-              <input
-                type="text"
-                required
-                value={catchmentUpazila}
-                onChange={(e) => setCatchmentUpazila(e.target.value)}
-                placeholder="e.g. Dhanmondi"
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Serving Hub</label>
-              <select
-                value={catchmentHubId}
-                onChange={(e) => setCatchmentHubId(e.target.value)}
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              >
-                {hubs.map((h) => (
-                  <option key={h.id} value={h.id}>{h.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Mapped Unions / Wards (comma separated)</label>
+          </label>
+          <label className="block text-xs font-semibold text-slate">
+            Name *
             <input
-              type="text"
-              value={catchmentUnions}
-              onChange={(e) => setCatchmentUnions(e.target.value)}
-              placeholder="e.g. Ward 15, Ward 14, Mohammadpur East"
-              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Est. Population</label>
-              <input
-                type="number"
-                value={catchmentPopulation}
-                onChange={(e) => setCatchmentPopulation(Number(e.target.value))}
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Coverage Radius (km)</label>
-              <input
-                type="number"
-                value={catchmentRadius}
-                onChange={(e) => setCatchmentRadius(Number(e.target.value))}
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Assignment Basis (PRD 8.4)</label>
-            <select
-              value={catchmentBasis}
-              onChange={(e) => setCatchmentBasis(e.target.value as CatchmentArea['basis'])}
-              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-            >
-              <option value="operations_assignment">Operations Assignment (Official Catchment)</option>
-              <option value="patient_choice">Patient Choice (Preferred Hub)</option>
-              <option value="campaign_camp">Campaign / Health Camp Outreach</option>
-              <option value="field_referral">Field Health Worker Referral</option>
-            </select>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="secondary" onClick={() => setIsAddCatchmentOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Save Catchment Area</Button>
-          </div>
-        </form>
-      </ModalSheet>
-
-      {/* Modal: Add Region */}
-      <ModalSheet
-        isOpen={isAddRegionOpen}
-        onClose={() => setIsAddRegionOpen(false)}
-        title="Add Regional Care Network"
-      >
-        <form onSubmit={handleCreateRegion} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Region Title</label>
-            <input
-              type="text"
               required
               value={regionName}
-              onChange={(e) => setRegionName(e.target.value)}
-              placeholder="e.g. Mymensingh Division Regional Care Network"
-              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              onChange={(event) => setRegionName(event.target.value)}
+              className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Division</label>
-              <select
-                value={regionDivision}
-                onChange={(e) => setRegionDivision(e.target.value)}
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              >
-                <option value="Dhaka">Dhaka</option>
-                <option value="Chittagong">Chittagong</option>
-                <option value="Sylhet">Sylhet</option>
-                <option value="Rajshahi">Rajshahi</option>
-                <option value="Barisal">Barisal</option>
-                <option value="Khulna">Khulna</option>
-                <option value="Rangpur">Rangpur</option>
-                <option value="Mymensingh">Mymensingh</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate">Regional Director</label>
-              <input
-                type="text"
-                value={regionalManager}
-                onChange={(e) => setRegionalManager(e.target.value)}
-                placeholder="e.g. Tariqul Islam"
-                className="h-10 w-full rounded-xl border border-line px-3 text-sm"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate">Emergency Contact Phone</label>
+          </label>
+          <label className="block text-xs font-semibold text-slate">
+            Name (Bangla)
             <input
-              type="text"
-              value={regionalPhone}
-              onChange={(e) => setRegionalPhone(e.target.value)}
-              placeholder="+880 1711 000000"
-              className="h-10 w-full rounded-xl border border-line px-3 text-sm"
+              value={regionNameBn}
+              onChange={(event) => setRegionNameBn(event.target.value)}
+              className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
             />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="secondary" onClick={() => setIsAddRegionOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Create Region</Button>
+          </label>
+          <label className="block text-xs font-semibold text-slate">
+            Administrative level *
+            <select
+              required
+              value={regionLevel}
+              onChange={(event) => setRegionLevel(event.target.value as NonNullable<Region['level']>)}
+              className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+            >
+              <option value="">Select level</option>
+              {levels.map((level) => (
+                <option key={level} value={level}>
+                  {level.replaceAll('_', ' ')}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs font-semibold text-slate">
+            Parent region
+            <select
+              value={parentId}
+              onChange={(event) => setParentId(event.target.value)}
+              className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+            >
+              <option value="">No parent</option>
+              {regions.map((region) => (
+                <option key={region.id} value={region.id}>
+                  {region.name} ({region.code})
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setIsAddRegionOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              Create region
+            </Button>
           </div>
         </form>
       </ModalSheet>
 
-      {/* Drawer: Catchment Details */}
-      {selectedCatchment && (
+      {/* Edit / Deactivate Region Modal */}
+      {editingRegion && (
         <ModalSheet
-          isOpen={!!selectedCatchment}
-          onClose={() => setSelectedCatchment(null)}
-          title={`Catchment Area: ${selectedCatchment.name}`}
+          isOpen={!!editingRegion}
+          onClose={() => setEditingRegion(null)}
+          title={`Region Governance: ${editingRegion.name}`}
+          subtitle={`Code: ${editingRegion.code} • Active: ${liveRegionDetail?.active !== false ? 'Yes' : 'No'}`}
         >
           <div className="space-y-4">
-            <div className="rounded-xl bg-bone p-4">
-              <div className="text-xs text-slate">Administrative Mapping</div>
-              <div className="text-base font-semibold text-ink">
-                Upazila: {selectedCatchment.upazila}
+            <form onSubmit={handleUpdateRegion} className="space-y-3">
+              <label className="block text-xs font-semibold text-slate">
+                Region Name *
+                <input
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-slate">
+                Region Name (Bangla)
+                <input
+                  value={editNameBn}
+                  onChange={(e) => setEditNameBn(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-slate">
+                Administrative Level *
+                <select
+                  value={editLevel}
+                  onChange={(e) => setEditLevel(e.target.value as NonNullable<Region['level']>)}
+                  className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+                >
+                  {levels.map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {lvl.replaceAll('_', ' ')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs font-semibold text-slate">
+                Parent Region
+                <select
+                  value={editParentId}
+                  onChange={(e) => setEditParentId(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+                >
+                  <option value="">No parent</option>
+                  {regions
+                    .filter((r) => r.id !== editingRegion.id)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} ({r.code})
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <div className="flex justify-end gap-2">
+                <Button variant="primary" type="submit" disabled={regionBusy}>
+                  Save Changes
+                </Button>
               </div>
-              <div className="mt-1 text-sm text-slate">
-                Assigned Hub: <strong>{selectedCatchment.hubName}</strong>
-              </div>
-            </div>
+            </form>
 
-            <div>
-              <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate">
-                Mapped Unions &amp; Villages
-              </h4>
-              <div className="space-y-1.5">
-                {selectedCatchment.unions.map((u, i) => (
-                  <div key={i} className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-sm">
-                    <PhMapPin size={16} color="#1D6B66" />
-                    <span>{u}</span>
-                  </div>
-                ))}
+            <div className="border-t border-line pt-3">
+              <div className="mb-1.5 text-xs font-semibold text-bad">Deactivate Region</div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={deactivateReason}
+                  onChange={(e) => setDeactivateReason(e.target.value)}
+                  placeholder="Deactivation reason..."
+                  className="h-9 flex-1 rounded-xl border border-line px-3 text-xs"
+                />
+                <button
+                  type="button"
+                  disabled={regionBusy}
+                  onClick={() => void handleDeactivateRegion()}
+                  className="cursor-pointer rounded-xl border border-bad/40 bg-bad-bg px-3 py-1.5 text-xs font-semibold text-bad-fg"
+                >
+                  Deactivate
+                </button>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="rounded-lg border border-line p-3">
-                <span className="text-slate">Coverage Radius:</span>
-                <div className="text-sm font-bold text-ink">~{selectedCatchment.coverageRadiusKm} km</div>
-              </div>
-              <div className="rounded-lg border border-line p-3">
-                <span className="text-slate">Est. Target Population:</span>
-                <div className="text-sm font-bold text-ink">{selectedCatchment.estimatedPopulation.toLocaleString()}</div>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <Button variant="secondary" onClick={() => setSelectedCatchment(null)} className="w-full">
-                Close Inspector
-              </Button>
             </div>
           </div>
         </ModalSheet>
       )}
+
+      {/* Assign Catchment Modal */}
+      <ModalSheet
+        isOpen={isAddCatchmentOpen}
+        onClose={() => setIsAddCatchmentOpen(false)}
+        title="Assign Hub Catchment"
+      >
+        <form onSubmit={handleCreateCatchment} className="space-y-3">
+          <label className="block text-xs font-semibold text-slate">
+            Hub *
+            <select
+              required
+              value={catchmentHubId}
+              onChange={(event) => setCatchmentHubId(event.target.value)}
+              className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+            >
+              <option value="">Select hub</option>
+              {hubs.map((hub) => (
+                <option key={hub.id} value={hub.id}>
+                  {hub.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs font-semibold text-slate">
+            Region *
+            <select
+              required
+              value={catchmentRegionId}
+              onChange={(event) => setCatchmentRegionId(event.target.value)}
+              className="mt-1 h-10 w-full rounded-xl border border-line px-3 text-sm font-normal"
+            >
+              <option value="">Select region</option>
+              {regions.map((region) => (
+                <option key={region.id} value={region.id}>
+                  {region.name} ({region.code})
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setIsAddCatchmentOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              Assign catchment
+            </Button>
+          </div>
+        </form>
+      </ModalSheet>
     </div>
   );
 };

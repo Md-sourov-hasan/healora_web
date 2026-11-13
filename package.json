@@ -1,11 +1,12 @@
+
 {
   "name": "healora_web",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node init && vite",
-    "build": "node init && tsc -b && vite build",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
@@ -15,9 +16,8 @@
     "@radix-ui/react-tabs": "^1.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "dotenv": "^8.2.0",
     "lucide-react": "^1.68.0",
-    "node-fetch": "^3.3.2",
+    "qrcode": "^1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tailwind-merge": "^3.7.0"
@@ -25,6 +25,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.4",
     "@types/node": "^24.19.2",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
@@ -34,3 +35,5 @@
     "vite": "^8.3.5"
   }
 }
+
+

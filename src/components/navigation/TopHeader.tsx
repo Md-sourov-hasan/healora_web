@@ -5,8 +5,12 @@ import {
   PhHospital,
   PhTranslate,
   PhCaretDown,
+  PhShieldCheck,
+  PhLockKey,
+  PhArrowsClockwise,
 } from '../icons/PhosphorIcons';
 import { useApp } from '../../context/AppContext';
+import { ROLES_CONFIG } from '../../config/rolesConfig';
 import type { UserRole } from '../../types';
 
 export const TopHeader: React.FC = () => {
@@ -16,6 +20,7 @@ export const TopHeader: React.FC = () => {
     simpleMode,
     setSimpleMode,
     activeRole,
+    availableRoles,
     setActiveRole,
     hubs,
     selectedHubId,
@@ -25,21 +30,30 @@ export const TopHeader: React.FC = () => {
     navigate,
     setIsCommandPaletteOpen,
     showToast,
+    isAuthenticated,
+    currentUser,
+    apiStatus,
+    apiLatency,
+    roleAssignments,
+    setIsAuthModalOpen,
+    refreshBackendData,
   } = useApp();
 
-  const currentHub = hubs.find((h) => h.id === selectedHubId) || hubs[0];
   const activeSession = sessions.find((s) => s.hubId === selectedHubId && s.status === 'in_progress');
-  const unreadNotifsCount = notifications.filter((n) => !n.acknowledged).length;
+  const unreadNotifsCount = notifications.filter((n) => n.acknowledged === false).length;
 
-  const roleOptions: { value: UserRole; label: string }[] = [
-    { value: 'hub_manager', label: 'Hub Manager (Kamrul H.)' },
-    { value: 'reception_officer', label: 'Reception Officer (Anisur R.)' },
-    { value: 'local_doctor', label: 'Local Doctor (Dr. Arjun M.)' },
-    { value: 'queue_coordinator', label: 'Queue Coordinator' },
-    { value: 'equipment_officer', label: 'Equipment Officer' },
-    { value: 'platform_super_admin', label: 'Platform Super Admin' },
-    { value: 'auditor', label: 'Operations Auditor' },
-  ];
+  const roleOptions = availableRoles.map((roleKey) => {
+    const cfg = ROLES_CONFIG[roleKey];
+    return {
+      value: roleKey,
+      label: `${cfg.number}. ${language === 'bn' ? cfg.titleBn : cfg.title}`,
+      scope: cfg.scopeLabel,
+    };
+  });
+
+  const visibleHubs = activeRole === 'regional_ops_manager'
+    ? hubs.filter((hub) => roleAssignments.some((assignment) => assignment.status === 'active' && assignment.role === activeRole && assignment.regionId === hub.regionId))
+    : hubs;
 
   const chip = 'inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-chip border px-3 text-[13px] font-semibold transition-all duration-150';
 
@@ -59,11 +73,15 @@ export const TopHeader: React.FC = () => {
               onChange={(e) => setSelectedHubId(e.target.value)}
               className="cursor-pointer appearance-none border-none bg-transparent pr-6 text-base font-semibold text-ink outline-none"
             >
-              {hubs.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {language === 'bn' ? h.nameBn : h.name}
-                </option>
-              ))}
+              {visibleHubs.length === 0 ? (
+                <option value="">{language === 'bn' ? 'কোনো হাব নেই' : 'No Hubs Registered'}</option>
+              ) : (
+                visibleHubs.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {language === 'bn' ? h.nameBn : h.name}
+                  </option>
+                ))
+              )}
             </select>
             <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-slate">
               <PhCaretDown size={14} />
@@ -83,12 +101,43 @@ export const TopHeader: React.FC = () => {
             {language === 'bn' ? 'কোনো সেশন সক্রিয় নেই' : 'No Active Session'}
           </div>
         )}
+
+        {/* Backend API Live Status Pill */}
+        <button
+          type="button"
+          onClick={() => setIsAuthModalOpen(true)}
+          className={`inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-xs font-semibold transition-colors ${
+            apiStatus === 'connected'
+              ? 'border-ok/30 bg-ok/10 text-pine hover:bg-ok/20'
+              : apiStatus === 'connecting'
+              ? 'border-amber-400/30 bg-amber-50 text-amber-800'
+              : 'border-slate/30 bg-bone text-slate hover:bg-mist'
+          }`}
+          title="Click to view Backend API status and authenticate"
+        >
+          <span
+            className={`size-2 rounded-full ${
+              apiStatus === 'connected'
+                ? 'bg-ok animate-pulse'
+                : apiStatus === 'connecting'
+                ? 'bg-amber-500 animate-ping'
+                : 'bg-slate'
+            }`}
+          />
+          <span>
+            {apiStatus === 'connected'
+              ? `API Live${apiLatency ? ` (${apiLatency}ms)` : ''}`
+              : apiStatus === 'connecting'
+              ? 'Connecting API...'
+              : 'API Disconnected'}
+          </span>
+        </button>
       </div>
 
       {/* Center: Quick Search Trigger */}
       <div
         onClick={() => setIsCommandPaletteOpen(true)}
-        className="flex w-[320px] cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-bone px-4 py-2 text-sm text-slate"
+        className="flex w-[280px] cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-bone px-4 py-2 text-sm text-slate hover:border-pine/30 transition-colors"
       >
         <PhMagnifyingGlass size={16} color="#5B6B6E" />
         <span className="flex-1 truncate">
@@ -97,8 +146,21 @@ export const TopHeader: React.FC = () => {
         <kbd className="rounded border border-line bg-paper px-1.5 py-0.5 text-[11px]">⌘K</kbd>
       </div>
 
-      {/* Right Controls: Language, Simple Mode, Role, Notification, Avatar */}
-      <div className="flex items-center gap-3.5">
+      {/* Right Controls: Sync, Language, Simple Mode, Role, Notification, Auth/Avatar */}
+      <div className="flex items-center gap-3">
+        {/* Quick Sync Button */}
+        <button
+          type="button"
+          onClick={() => {
+            refreshBackendData();
+            showToast('Syncing with Render Backend...');
+          }}
+          className="inline-flex size-9 items-center justify-center rounded-chip border border-line bg-bone text-slate hover:text-pine hover:bg-mist transition-colors"
+          title="Refresh live data from backend"
+        >
+          <PhArrowsClockwise size={16} />
+        </button>
+
         {/* Language Toggle: "বাংলা · English" (PRD Chapter 10 & Design System Ch 03) */}
         <button
           type="button"
@@ -124,12 +186,16 @@ export const TopHeader: React.FC = () => {
         <div className="relative flex h-9 items-center rounded-chip border border-line bg-bone px-2.5 py-1">
           <select
             value={activeRole}
+            disabled={!isAuthenticated || availableRoles.length < 2}
             onChange={(e) => {
               setActiveRole(e.target.value as UserRole);
-              showToast(`Switched active role to: ${e.target.value.replace(/_/g, ' ')}`);
             }}
-            className="cursor-pointer appearance-none border-none bg-transparent pr-4 text-xs font-semibold text-ink outline-none"
+            aria-label="Select active assigned role"
+            title={isAuthenticated ? 'Select an assigned role' : 'Sign in to select your role'}
+            className="cursor-pointer appearance-none border-none bg-transparent pr-4 text-xs font-semibold text-ink outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
+            {!isAuthenticated && <option value={activeRole}>Sign in to select role</option>}
+            {isAuthenticated && roleOptions.length === 0 && <option value={activeRole}>No assigned roles</option>}
             {roleOptions.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}
@@ -141,28 +207,46 @@ export const TopHeader: React.FC = () => {
           </span>
         </div>
 
-        {/* Notification Bell with Clay Badge (Design System Ch 7.8: notification badge is clay, 16px) */}
+        {/* Notification Bell with Clay Badge */}
         <button
           type="button"
           onClick={() => navigate('/notifications')}
-          className="relative inline-flex size-11 cursor-pointer items-center justify-center rounded-full border-none bg-transparent hover:bg-mist"
+          className="relative inline-flex size-10 cursor-pointer items-center justify-center rounded-full border-none bg-transparent hover:bg-mist"
           title="Notifications & Activity"
         >
           <PhBell size={20} color="#0B1F22" />
           {unreadNotifsCount > 0 && (
-            <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-clay text-[10px] font-bold text-white shadow-[0_1px_3px_rgba(192,99,63,0.4)]">
+            <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-clay text-[10px] font-bold text-white shadow-[0_1px_3px_rgba(192,99,63,0.4)]">
               {unreadNotifsCount}
             </span>
           )}
         </button>
 
-        {/* User Avatar */}
-        <div
-          className="flex size-10 items-center justify-center rounded-full border-2 border-white bg-sage-200 text-sm font-bold text-pine shadow-[0_1px_4px_rgba(11,31,34,.1)]"
-          title={currentHub.assignedManager}
-        >
-          KH
-        </div>
+        {/* Staff Authentication & Profile Button */}
+        {isAuthenticated && currentUser ? (
+          <button
+            type="button"
+            onClick={() => setIsAuthModalOpen(true)}
+            className="flex items-center gap-2 rounded-full border border-ok/30 bg-ok/10 pl-2 pr-3 py-1 text-xs font-semibold text-pine hover:bg-ok/20 transition-colors"
+            title={`Signed in as ${currentUser.name} (${currentUser.email})`}
+          >
+            <div className="flex size-7 items-center justify-center rounded-full bg-pine text-white text-[11px] font-bold">
+              {currentUser.name.slice(0, 2).toUpperCase()}
+            </div>
+            <span className="max-w-[90px] truncate">{currentUser.name.split(' ')[0]}</span>
+            <PhShieldCheck size={14} className="text-ok" weight="bold" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsAuthModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-chip border border-pine/30 bg-pine/5 px-3 py-1.5 text-xs font-semibold text-pine hover:bg-pine hover:text-white transition-all"
+            title="Sign in with staff credentials"
+          >
+            <PhLockKey size={14} />
+            <span>{language === 'bn' ? 'স্টাফ লগইন' : 'Staff Login'}</span>
+          </button>
+        )}
       </div>
     </header>
   );
